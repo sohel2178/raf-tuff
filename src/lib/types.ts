@@ -1,0 +1,80 @@
+export type Role = 'admin' | 'employee';
+export type Operator = 'GP' | 'RB' | 'AT' | 'BL' | 'TT' | 'SK' | 'BT' | 'RY';
+export type RechargeType = 'prepaid' | 'postpaid';
+export type RechargeStatus = 'Pending' | 'Processing' | 'Success' | 'Cancel' | 'Failed' | 'Unknown';
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  rechargeLimit: number | null;
+  dailyLimit: number | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  /** false = server has no RECHARGE_PIN, so web recharges are refused */
+  rechargePinConfigured?: boolean;
+};
+
+export type StatusEvent = {
+  status: RechargeStatus;
+  source: 'api' | 'poll' | 'webhook' | 'system' | 'manual';
+  at: string;
+  note?: string;
+  raw?: unknown;
+};
+
+export type Recharge = {
+  id: string;
+  trxid: string;
+  providerTxnId?: string | null;
+  number: string;
+  operator: Operator;
+  type: RechargeType;
+  amount: number;
+  packageId?: string | null;
+  status: RechargeStatus;
+  statusHistory?: StatusEvent[];
+  providerMessage?: string | null;
+  rawRechargeResponse?: unknown;
+  createdBy: { id: string; name: string; email: string } | string | null;
+  apiKey?: { name: string; prefix: string } | null;
+  source: 'web' | 'external-api';
+  completedAt?: string | null;
+  needsReview?: boolean;
+  pollCount?: number;
+  lastPolledAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Paged<T> = { items: T[]; page: number; pageSize: number; total: number; totalPages: number };
+
+export type Totals = {
+  amount: number;
+  count: number;
+  success: number;
+  failed: number;
+  cancel: number;
+  processing: number;
+  unknown: number;
+  failedAmount: number;
+  pendingAmount: number;
+  successRate: number | null;
+};
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: ('history:read' | 'recharge:create')[];
+  rechargeLimit: number | null;
+  ipAllowlist: string[];
+  active: boolean;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
+  lastUsedIp: string | null;
+  createdBy: { name: string; email: string } | null;
+  createdAt: string;
+};

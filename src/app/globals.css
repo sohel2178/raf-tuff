@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #edf1ee;
+  --color-paper-2: #e3e9e5;
+  --color-surface: #ffffff;
+  --color-ink: #13261f;
+  --color-ink-2: #2d4239;
+  --color-muted: #5b6e66;
+  --color-line: #d3dcd7;
+  --color-line-strong: #b9c6bf;
+  --color-flag: #006a4e;
+  --color-flag-deep: #00513b;
+  --color-flag-tint: #dcefe7;
+  /* chart mark hue — validated (lightness, chroma ≥ 0.1, ≥3:1 on surface) */
+  --color-chart: #00875f;
+  --color-marigold: #d99a06;
+  --color-marigold-tint: #fbf0d2;
+  --color-danger: #d7263d;
+  --color-danger-tint: #fbe3e6;
+  --color-unknown: #6b4fa8;
+  --color-unknown-tint: #ebe5f6;
+  --color-cancel: #5f6b72;
+  --color-cancel-tint: #e6eaec;
+
+  --font-sans: var(--font-plex), var(--font-plex-bn), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-schibsted), var(--font-plex-bn), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  --animate-slip-in: slip-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  @keyframes slip-in {
+    from { transform: translateY(-14px); clip-path: inset(0 0 100% 0); }
+    to { transform: translateY(0); clip-path: inset(0 0 0 0); }
+  }
+  --animate-shake: shake 360ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(3px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+  --animate-stamp: stamp 380ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  @keyframes stamp {
+    from { transform: scale(1.6) rotate(-14deg); opacity: 0; }
+    to { transform: scale(1) rotate(-8deg); opacity: 1; }
+  }
+}
+
+@layer base {
+  html { background: var(--color-paper); color: var(--color-ink); }
+  body { background: var(--color-paper); font-family: var(--font-sans); font-feature-settings: "tnum" 1; -webkit-tap-highlight-color: transparent; }
+  /* in a layer so utilities like focus-visible:outline-none can override it */
+  :focus-visible { outline: 2px solid var(--color-flag); outline-offset: 2px; }
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Thermal receipt: perforated top & bottom edges */
+.receipt {
+  --perf: 7px;
+  background: var(--color-surface);
+  -webkit-mask:
+    radial-gradient(circle var(--perf) at 50% 0, #0000 98%, #000) 50% 0 / calc(var(--perf) * 2.6) 51% repeat-x,
+    radial-gradient(circle var(--perf) at 50% 100%, #0000 98%, #000) 50% 100% / calc(var(--perf) * 2.6) 51% repeat-x;
+          mask:
+    radial-gradient(circle var(--perf) at 50% 0, #0000 98%, #000) 50% 0 / calc(var(--perf) * 2.6) 51% repeat-x,
+    radial-gradient(circle var(--perf) at 50% 100%, #0000 98%, #000) 50% 100% / calc(var(--perf) * 2.6) 51% repeat-x;
+  filter: drop-shadow(0 1px 0 var(--color-line-strong));
+}
+.receipt-rule { border-top: 1.5px dashed var(--color-line-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
