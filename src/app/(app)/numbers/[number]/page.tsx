@@ -9,7 +9,6 @@ import { RechargeList } from '@/components/recharge/RechargeList';
 import { Empty, ErrorNote, Panel, PanelHead, Skeleton } from '@/components/ui/misc';
 import { OperatorMark } from '@/components/ui/status';
 import { api } from '@/lib/api';
-import { useUser } from '@/lib/auth';
 import { OPEN_STATUSES, PHONE_REGEX } from '@/lib/constants';
 import { fmtDateTime, fmtPhone, taka } from '@/lib/format';
 import type { Operator, Recharge } from '@/lib/types';
@@ -33,7 +32,6 @@ type NumberData = {
 
 export default function NumberPage({ params }: { params: Promise<{ number: string }> }) {
   const { number } = use(params);
-  const user = useUser();
   const [open, setOpen] = useState<string | null>(null);
   const valid = PHONE_REGEX.test(number);
 
@@ -51,7 +49,7 @@ export default function NumberPage({ params }: { params: Promise<{ number: strin
     <>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-muted">{user.role === 'admin' ? 'All recharges to' : 'Your recharges to'}</p>
+          <p className="text-muted">All recharges to</p>
           <h1 className="tabular font-display text-[34px] leading-tight font-extrabold tracking-[-0.02em] sm:text-[40px]">{fmtPhone(number)}</h1>
           {s?.usualOperator && (
             <p className="mt-1">
@@ -96,7 +94,7 @@ export default function NumberPage({ params }: { params: Promise<{ number: strin
         {q.data && q.data.items.length === 0 && (
           <Empty title="No recharges to this number yet" action={<Link className="font-medium text-flag hover:underline" href={`/recharge?number=${number}`}>Send the first one</Link>} />
         )}
-        {q.data && q.data.items.length > 0 && <RechargeList items={q.data.items} onOpen={setOpen} showEmployee={user.role === 'admin'} linkNumbers={false} />}
+        {q.data && q.data.items.length > 0 && <RechargeList items={q.data.items} onOpen={setOpen} showEmployee linkNumbers={false} />}
       </Panel>
       <RechargeDrawer trxid={open} onClose={() => setOpen(null)} />
     </>

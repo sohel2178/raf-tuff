@@ -9,16 +9,17 @@ import { PinPad } from '@/components/recharge/PinPad';
 import { Receipt } from '@/components/recharge/Receipt';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/field';
-import { OperatorMark } from '@/components/ui/status';
+import { OperatorMark, StatusBadge } from '@/components/ui/status';
 import { ApiError, api, newIdempotencyKey } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { MIN_AMOUNT, OPEN_STATUSES, OPERATORS, PHONE_REGEX, QUICK_AMOUNTS, detectOperator } from '@/lib/constants';
-import { fmtDay, fmtPhone, taka } from '@/lib/format';
-import type { Operator, Paged, Recharge, RechargeType, Totals } from '@/lib/types';
+import { creatorName, dhakaDayKey, dhakaToday, fmtDateTime, fmtDay, fmtPhone, taka, timeAgo } from '@/lib/format';
+import type { Operator, Paged, Recharge, RechargeStatus, RechargeType, Totals } from '@/lib/types';
 
 type Draft = { number: string; operator: Operator; type: RechargeType; amount: number };
+type LastRow = { trxid: string; amount: number; status: RechargeStatus; createdAt: string; createdBy?: unknown };
 type NumberInfo = {
-  summary: { usualOperator: Operator | null; lastSuccess: { amount: number; createdAt: string } | null; count: number };
+  summary: { usualOperator: Operator | null; lastRecharge: LastRow | null; lastSuccess: LastRow | null; count: number };
 };
 
 /** Accepts pasted +8801…, 8801…, spaces, dashes. */
@@ -229,14 +230,15 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
         <p id="number-help" className={clsx('mt-1.5 min-h-5 text-sm', touched && errors.number ? 'text-danger' : 'text-muted')}>
           {touched && errors.number
             ? errors.number
-            : info.data?.summary.lastSuccess
-              ? `Last topped up ${taka(info.data.summary.lastSuccess.amount)} on ${fmtDay(dhakaDayOf(info.data.summary.lastSuccess.createdAt))}`
+            : complete && info.isLoading
+              ? 'Checking this number’s history…'
               : complete && info.data && info.data.summary.count === 0
                 ? 'First recharge to this number'
                 : opSource === 'prefix'
                   ? 'Operator guessed from the prefix. Change it if the SIM was ported.'
                   : ' '}
         </p>
+        {complete && info.data?.summary.lastRecharge && <LastRechargeCard number={number} summary={info.data.summary} />}
       </div>
 
       {recentNumbers.length > 0 && !number && (
@@ -354,8 +356,49 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
   );
 }
 
-const dhakaDayOf = (iso: string) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+
+/** Shop-wide last recharge to this number (any user, any status), so nobody tops up twice by accident. */
+function LastRechargeCard({ number, summary, compact }: { number: string; summary: NumberInfo['summary']; compact?: boolean }) {
+  const last = summary.lastRecharge;
+  if (!last) return null;
+  const today = dhakaDayKey(last.createdAt) === dhakaToday();
+  const counts = last.status !== 'Failed' && last.status !== 'Cancel';
+  const warn = today && counts;
+  const success = summary.lastSuccess;
+  return (
+    <div
+      className={clsx(
+        'mt-2 rounded-lg border px-3.5 py-2.5 text-sm',
+        warn ? 'border-marigold/60 bg-marigold-tint text-[#6e5000]' : 'border-line bg-surface text-ink-2',
+      )}
+      role={warn ? 'status' : undefined}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-medium">{warn ? 'Already recharged today' : 'Last recharge'}</p>
+        {!compact && (
+          <Link href={`/numbers/${number}`} className="shrink-0 text-flag underline-offset-4 hover:underline">
+            See all{summary.count > 1 ? ` ${summary.count}` : ''}
+          </Link>
+        )}
+      </div>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="tabular font-semibold text-ink">{taka(last.amount)}</span>
+        <StatusBadge status={last.status} />
+        <span className="tabular" title={fmtDateTime(last.createdAt)}>
+          {fmtDateTime(last.createdAt)}
+          {Date.now() - new Date(last.createdAt).getTime() < 86_400_000 && ` · ${timeAgo(last.createdAt)}`}
+        </span>
+        <span className="text-muted">by {creatorName(last.createdBy)}</span>
+      </p>
+      {last.status !== 'Success' && success && (
+        <p className="mt-1 text-muted">
+          Last successful: <span className="tabular">{taka(success.amount)}</span> on {fmtDay(dhakaDayKey(success.createdAt))} by{' '}
+          {creatorName(success.createdBy)}
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ───────────────────────────── Step 2: confirm ─────────────────────────────
 
@@ -366,6 +409,12 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(0);
   const pinRef = useRef<HTMLInputElement>(null);
+  // Same cache as the form's lookup, so this is usually instant.
+  const info = useQuery({
+    queryKey: ['number-hint', draft.number],
+    queryFn: () => api<NumberInfo>(`/api/numbers/${draft.number}`, { query: { limit: 1 } }),
+    staleTime: 60_000,
+  });
 
   const m = useMutation({
     mutationFn: () =>
@@ -379,6 +428,8 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
       qc.invalidateQueries({ queryKey: ['recharges'] });
       qc.invalidateQueries({ queryKey: ['summary'] });
       qc.invalidateQueries({ queryKey: ['recent-numbers'] });
+      qc.invalidateQueries({ queryKey: ['number-hint'] });
+      qc.invalidateQueries({ queryKey: ['number'] });
       onDone(r.recharge);
     },
     onError: (e) => {
@@ -401,6 +452,7 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
     <div>
       <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">Check and send</h1>
       <p className="mt-1 text-muted">The operator can&apos;t reverse a recharge once it&apos;s sent.</p>
+      {info.data?.summary.lastRecharge && <LastRechargeCard number={draft.number} summary={info.data.summary} compact />}
       <form
         onSubmit={(e) => {
           e.preventDefault();
