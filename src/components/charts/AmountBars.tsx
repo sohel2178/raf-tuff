@@ -1,5 +1,6 @@
 'use client';
 
+import { m, useReducedMotion } from 'framer-motion';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { fmtDay, num, pct, taka } from '@/lib/format';
 import type { Totals } from '@/lib/types';
@@ -29,6 +30,7 @@ function Tip({ active, payload }: { active?: boolean; payload?: { payload: Row }
 
 /** Single-series column chart of successful amount per day. Title outside names the series (no legend). */
 export function AmountBars({ rows, height = 220 }: { rows: Row[]; height?: number }) {
+  const reduce = useReducedMotion();
   return (
     <>
       <div style={{ height }} aria-hidden>
@@ -53,7 +55,7 @@ export function AmountBars({ rows, height = 220 }: { rows: Row[]; height?: numbe
               allowDecimals={false}
             />
             <Tooltip content={<Tip />} cursor={{ fill: 'var(--color-paper)', opacity: 0.8 }} />
-            <Bar dataKey="amount" fill="var(--color-chart)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false} />
+            <Bar dataKey="amount" fill="var(--color-chart)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={!reduce} animationDuration={420} animationEasing="ease-out" />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -86,7 +88,7 @@ export function InlineBar({ value, max }: { value: number; max: number }) {
   const w = max > 0 ? Math.max(2, (value / max) * 100) : 0;
   return (
     <div className="h-2 w-full rounded-r-[4px] bg-paper-2" aria-hidden>
-      <div className="h-2 rounded-r-[4px] bg-chart" style={{ width: `${w}%` }} />
+      <m.div className="h-2 rounded-r-[4px] bg-chart" initial={{ width: 0 }} animate={{ width: `${w}%` }} transition={{ duration: 0.42, ease: [0.2, 0.8, 0.2, 1] }} />
     </div>
   );
 }

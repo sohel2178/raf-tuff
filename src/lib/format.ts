@@ -41,6 +41,16 @@ export function timeAgo(s?: string | null) {
   return fmtDateTime(s);
 }
 
+/** Accepts pasted +8801…, 8801…, spaces, dashes → 01XXXXXXXXX (at most 11 digits). */
+export function cleanNumber(raw: string) {
+  let d = raw.replace(/\D/g, '');
+  if (d.startsWith('880')) d = d.slice(2);
+  else if (d.startsWith('88') && d.length > 11) d = d.slice(2);
+  // Spreadsheets store numbers without the leading zero: 1712345678 → 01712345678
+  if (d.length === 10 && d.startsWith('1')) d = `0${d}`;
+  return d.slice(0, 11);
+}
+
 /** 01712345678 → 017 1234 5678 */
 export function fmtPhone(n: string) {
   const d = n.replace(/\D/g, '');

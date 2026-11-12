@@ -1,7 +1,8 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { AnimatePresence, m } from 'framer-motion';
+import { useRef, useState } from 'react';
 import { AdminOnly } from '@/components/AppShell';
 import { IconCopy, IconPlus } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { Modal } from '@/components/ui/overlay';
 import { useToast } from '@/components/ui/toast';
 import { API_URL, api } from '@/lib/api';
 import { fmtDateTime, taka, timeAgo } from '@/lib/format';
+import { EASE_OUT, spring } from '@/lib/motion';
 import type { ApiKey } from '@/lib/types';
 
 export default function ApiKeysPage() {
@@ -26,6 +28,10 @@ function ApiKeys() {
   const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [revealed, setRevealed] = useState<{ key: string; name: string } | null>(null);
+  // keep the last key on screen while the dialog animates out
+  const lastRevealed = useRef(revealed);
+  if (revealed) lastRevealed.current = revealed;
+  const shown = revealed ?? lastRevealed.current;
   const [revoking, setRevoking] = useState<ApiKey | null>(null);
   const q = useQuery({ queryKey: ['api-keys'], queryFn: () => api<{ items: ApiKey[] }>('/api/api-keys') });
   const revoke = useMutation({
@@ -59,8 +65,16 @@ function ApiKeys() {
           <Empty title="No active keys" body="Create a key for your automation app. You'll see it once, so copy it somewhere safe." />
         )}
         <ul className="divide-y divide-line">
+          <AnimatePresence initial={false} mode="popLayout">
           {active.map((k) => (
-            <li key={k.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 sm:px-5">
+            <m.li
+              key={k.id}
+              layout="position"
+              initial={{ opacity: 0, y: -8, backgroundColor: 'var(--color-flag-tint)' }}
+              animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(255,255,255,0)', transition: { duration: 0.3, ease: EASE_OUT, backgroundColor: { duration: 1.6 } } }}
+              exit={{ opacity: 0, x: 24, transition: { duration: 0.2, ease: EASE_OUT } }}
+              className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-4 sm:px-5"
+            >
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{k.name}</p>
                 <p className="font-mono text-[12.5px] text-muted">stp_{k.prefix}_••••••••</p>
@@ -83,8 +97,9 @@ function ApiKeys() {
               <Button size="sm" variant="danger" onClick={() => setRevoking(k)}>
                 Revoke
               </Button>
-            </li>
+            </m.li>
           ))}
+          </AnimatePresence>
         </ul>
       </Panel>
 
@@ -120,17 +135,16 @@ function ApiKeys() {
       />
 
       <Modal open={!!revealed} onClose={() => setRevealed(null)} title="Copy your key now" footer={<Button onClick={() => setRevealed(null)}>I&apos;ve saved it</Button>}>
-        <p className="text-muted">This is the only time the key for “{revealed?.name}” is shown. If you lose it, revoke it and create a new one.</p>
-        <div className="mt-4 flex items-center gap-2 rounded-lg border-2 border-dashed border-flag bg-flag-tint p-3">
-          <code className="flex-1 font-mono text-[13px] break-all">{revealed?.key}</code>
-          <button
-            onClick={() => navigator.clipboard.writeText(revealed!.key).then(() => toast('Key copied'))}
-            className="rounded-md p-2 text-flag-deep hover:bg-white"
-            aria-label="Copy key"
-          >
-            <IconCopy />
-          </button>
-        </div>
+        <p className="text-muted">This is the only time the key for “{shown?.name}” is shown. If you lose it, revoke it and create a new one.</p>
+        <m.div
+          variants={feedKey}
+          initial="hidden"
+          animate="show"
+          className="mt-4 flex items-center gap-2 rounded-lg border-2 border-dashed border-flag bg-flag-tint p-3"
+        >
+          <code className="flex-1 font-mono text-[13px] break-all">{shown?.key}</code>
+          <CopyButton onCopy={() => navigator.clipboard.writeText(shown!.key).then(() => toast('Key copied'))} />
+        </m.div>
       </Modal>
 
       <Modal
@@ -235,5 +249,51 @@ function CreateKey({ open, onClose, onCreated }: { open: boolean; onClose: () =>
         {m.error && <p className="text-sm text-danger">{m.error.message}</p>}
       </div>
     </Modal>
+  );
+}
+
+const feedKey = {
+  hidden: { opacity: 0, clipPath: 'inset(0 100% 0 0)' },
+  show: { opacity: 1, clipPath: 'inset(0 0% 0 0)', transition: { duration: 0.5, ease: EASE_OUT, delay: 0.12 } },
+};
+
+/** Copy icon that turns into a check for a moment, so the copy is confirmed where you tapped. */
+function CopyButton({ onCopy }: { onCopy: () => Promise<unknown> }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      onClick={() =>
+        onCopy().then(() => {
+          setDone(true);
+          setTimeout(() => setDone(false), 1600);
+        })
+      }
+      className="grid size-9 place-items-center rounded-md text-flag-deep hover:bg-white"
+      aria-label={done ? 'Copied' : 'Copy key'}
+    >
+      <AnimatePresence mode="popLayout" initial={false}>
+        {done ? (
+          <m.svg
+            key="check"
+            viewBox="0 0 24 24"
+            className="size-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            transition={spring.stamp}
+            aria-hidden
+          >
+            <m.path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.3 }} />
+          </m.svg>
+        ) : (
+          <m.span key="copy" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="inline-flex">
+            <IconCopy />
+          </m.span>
+        )}
+      </AnimatePresence>
+    </button>
   );
 }

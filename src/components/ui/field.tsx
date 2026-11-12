@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { forwardRef, useId } from 'react';
+import { SlidingMarker } from '@/components/motion';
 
 export function Field({
   label,
@@ -73,6 +74,7 @@ export function Segmented<T extends string>({
   label: string;
   className?: string;
 }) {
+  const markerId = `seg-${useId()}`;
   return (
     <div role="radiogroup" aria-label={label} className={clsx('inline-flex rounded-lg bg-paper-2 p-1', className)}>
       {options.map((o) => (
@@ -83,11 +85,12 @@ export function Segmented<T extends string>({
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
           className={clsx(
-            'h-8 flex-1 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors',
-            value === o.value ? 'bg-surface text-ink shadow-[0_1px_0_var(--color-line-strong)]' : 'text-muted hover:text-ink',
+            'relative h-8 flex-1 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors',
+            value === o.value ? 'text-ink' : 'text-muted hover:text-ink',
           )}
         >
-          {o.label}
+          {value === o.value && <SlidingMarker id={markerId} className="inset-0 rounded-md bg-surface shadow-[0_1px_0_var(--color-line-strong)]" />}
+          <span className="relative">{o.label}</span>
         </button>
       ))}
     </div>

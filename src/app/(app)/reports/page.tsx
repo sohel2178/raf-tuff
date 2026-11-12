@@ -1,5 +1,7 @@
 'use client';
 
+import { AnimatePresence, m } from 'framer-motion';
+import { CountUp } from '@/components/motion';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
@@ -107,11 +109,11 @@ function Reports() {
       {summary.error && <div className="mt-4"><ErrorNote error={summary.error} retry={() => summary.refetch()} /></div>}
 
       <section className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line md:grid-cols-5">
-        <Tile label="Amount spent" value={t && taka(t.amount)} sub="successful only" strong />
-        <Tile label="Successful" value={t && num(t.success)} sub={t && `${pct(t.successRate)} of settled`} />
-        <Tile label="Failed" value={t && num(t.failed)} sub={t && taka(t.failedAmount) + ' not charged'} />
-        <Tile label="Cancelled" value={t && num(t.cancel)} />
-        <Tile label="Still open" value={t && num(t.processing + t.unknown)} sub={t && `${num(t.unknown)} unknown`} />
+        <Tile label="Amount spent" value={t?.amount} money sub="successful only" strong />
+        <Tile label="Successful" value={t?.success} sub={t && `${pct(t.successRate)} of settled`} />
+        <Tile label="Failed" value={t?.failed} sub={t && taka(t.failedAmount) + ' not charged'} />
+        <Tile label="Cancelled" value={t?.cancel} />
+        <Tile label="Still open" value={t && t.processing + t.unknown} sub={t && `${num(t.unknown)} unknown`} />
       </section>
 
       <Panel className="mt-6">
@@ -197,14 +199,16 @@ function CsvButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function Tile({ label, value, sub, strong }: { label: string; value?: string | null; sub?: string | null; strong?: boolean }) {
+function Tile({ label, value, sub, strong, money }: { label: string; value?: number; sub?: string | null; strong?: boolean; money?: boolean }) {
   return (
     <div className={strong ? 'col-span-2 bg-ink px-5 py-4 text-white md:col-span-1' : 'bg-surface px-5 py-4'}>
       <p className={strong ? 'text-sm text-white/70' : 'text-sm text-muted'}>{label}</p>
       {value == null ? (
         <Skeleton className="mt-2 h-7 w-20" />
       ) : (
-        <p className="tabular mt-1 font-display text-2xl font-bold">{value}</p>
+        <p className="mt-1 font-display text-2xl font-bold">
+          <CountUp value={value} fromZero={strong} format={(v) => (money ? taka(Math.round(v)) : num(Math.round(v)))} />
+        </p>
       )}
       {sub && <p className={strong ? 'mt-0.5 text-sm text-white/70' : 'mt-0.5 text-sm text-muted'}>{sub}</p>}
     </div>
@@ -269,8 +273,17 @@ function TopList({ title, rows, metric, sub }: { title: string; rows: TopRow[]; 
         <p className="py-6 text-center text-muted">No successful recharges in this range.</p>
       ) : (
         <ol className="divide-y divide-line">
+          <AnimatePresence initial={false} mode="popLayout">
           {rows.map((r, i) => (
-            <li key={r.number} className="flex items-center gap-3 py-2">
+            <m.li
+              key={r.number}
+              layout="position"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.12 } }}
+              transition={{ duration: 0.26 }}
+              className="flex items-center gap-3 py-2"
+            >
               <span className="tabular w-5 text-right text-sm text-muted">{i + 1}</span>
               <OperatorMark op={r.operator} size="sm" />
               <Link href={`/numbers/${r.number}`} className="tabular flex-1 font-medium hover:text-flag hover:underline">
@@ -280,8 +293,9 @@ function TopList({ title, rows, metric, sub }: { title: string; rows: TopRow[]; 
                 <span className="tabular block font-semibold">{metric(r)}</span>
                 <span className="tabular block text-xs text-muted">{sub(r)}</span>
               </span>
-            </li>
+            </m.li>
           ))}
+          </AnimatePresence>
         </ol>
       )}
     </div>

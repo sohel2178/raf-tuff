@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import { MotionRoot } from '@/components/motion/MotionRoot';
 import { ToastProvider } from '@/components/ui/toast';
 import { AuthProvider } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
@@ -22,7 +23,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <ToastProvider>{children}</ToastProvider>
+        <MotionRoot>
+          <ToastProvider>{children}</ToastProvider>
+        </MotionRoot>
       </AuthProvider>
     </QueryClientProvider>
   );

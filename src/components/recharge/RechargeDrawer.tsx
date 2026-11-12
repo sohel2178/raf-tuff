@@ -3,12 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { IconRefresh } from '@/components/icons';
+import { LiveStatus } from '@/components/motion';
 import { Button } from '@/components/ui/button';
 import { ErrorNote, Skeleton } from '@/components/ui/misc';
 import { Drawer } from '@/components/ui/overlay';
-import { OperatorMark, StatusBadge, statusColor } from '@/components/ui/status';
+import { OperatorMark, statusColor } from '@/components/ui/status';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { useUser } from '@/lib/auth';
@@ -24,7 +25,11 @@ const SOURCE: Record<string, string> = {
   manual: 'Manual re-check',
 };
 
-export function RechargeDrawer({ trxid, onClose }: { trxid: string | null; onClose: () => void }) {
+export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | null; onClose: () => void }) {
+  // Keep showing the last recharge while the drawer slides away.
+  const last = useRef(openTrxid);
+  if (openTrxid) last.current = openTrxid;
+  const trxid = openTrxid ?? last.current;
   const user = useUser();
   const qc = useQueryClient();
   const toast = useToast();
@@ -33,7 +38,7 @@ export function RechargeDrawer({ trxid, onClose }: { trxid: string | null; onClo
   const q = useQuery({
     queryKey: ['recharge', trxid],
     queryFn: () => api<{ recharge: Recharge }>(`/api/recharges/${trxid}`).then((r) => r.recharge),
-    enabled: !!trxid,
+    enabled: !!openTrxid,
     refetchInterval: (query) => (OPEN_STATUSES.includes(query.state.data?.status ?? 'Success') ? 8000 : false),
   });
 
@@ -50,7 +55,7 @@ export function RechargeDrawer({ trxid, onClose }: { trxid: string | null; onClo
   const r = q.data;
   return (
     <Drawer
-      open={!!trxid}
+      open={!!openTrxid}
       onClose={onClose}
       title={r ? fmtPhone(r.number) : 'Recharge'}
       footer={
@@ -85,7 +90,7 @@ export function RechargeDrawer({ trxid, onClose }: { trxid: string | null; onClo
                 <OperatorMark op={r.operator} size="sm" withName /> <span className="capitalize">· {r.type}</span>
               </p>
             </div>
-            <StatusBadge status={r.status} />
+            <LiveStatus status={r.status} />
           </div>
           {r.needsReview && (
             <p className="mt-4 rounded-lg bg-unknown-tint px-3 py-2 text-sm text-unknown">

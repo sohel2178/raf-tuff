@@ -1,6 +1,9 @@
 'use client';
 
 import clsx from 'clsx';
+import { AnimatePresence, m } from 'framer-motion';
+import { ShakeOn } from '@/components/motion';
+import { spring } from '@/lib/motion';
 import { forwardRef, useState } from 'react';
 
 type Props = {
@@ -28,7 +31,7 @@ export const PinPad = forwardRef<HTMLInputElement, Props>(function PinPad(
       <label htmlFor="recharge-pin" className="text-sm text-muted">
         Enter your recharge PIN to authorise
       </label>
-      <div key={shakeKey} className={clsx('relative mt-2', shakeKey > 0 && 'animate-shake')}>
+      <ShakeOn trigger={shakeKey} className="relative mt-2">
         <input
           ref={ref}
           id="recharge-pin"
@@ -56,21 +59,30 @@ export const PinPad = forwardRef<HTMLInputElement, Props>(function PinPad(
               <div
                 key={i}
                 className={clsx(
-                  'grid h-13 place-items-center rounded-lg border-2 bg-paper transition-colors',
+                  'grid h-13 place-items-center rounded-lg border-2 bg-paper transition-[border-color,background-color] duration-200',
                   disabled && 'opacity-50',
                   isActive ? 'border-flag bg-surface' : error ? 'border-danger/60' : filled ? 'border-ink-2' : 'border-line-strong',
                 )}
               >
-                {filled ? (
-                  <span className="size-3 rounded-full bg-ink" />
-                ) : isActive ? (
-                  <span className="h-5 w-0.5 animate-pulse-soft bg-flag" />
-                ) : null}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {filled ? (
+                    <m.span
+                      key="dot"
+                      className="size-3 rounded-full bg-ink"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0, transition: { duration: 0.1 } }}
+                      transition={spring.stamp}
+                    />
+                  ) : isActive ? (
+                    <span key="caret" className="h-5 w-0.5 animate-pulse-soft bg-flag" />
+                  ) : null}
+                </AnimatePresence>
               </div>
             );
           })}
         </div>
-      </div>
+      </ShakeOn>
       <p id="recharge-pin-msg" role={error ? 'alert' : undefined} className={clsx('mt-2 min-h-5 text-sm', error ? 'text-danger' : 'text-muted')}>
         {error ?? 'Ask your admin if you don’t know the PIN.'}
       </p>

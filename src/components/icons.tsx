@@ -23,4 +23,7 @@ export const IconSearch = base(<><circle cx="11" cy="11" r="6.5" /><path d="m20 
 export const IconFilter = base(<path d="M4 5h16l-6 7.5V19l-4 1v-7.5L4 5Z" />);
 export const IconCopy = base(<><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></>);
 export const IconPlus = base(<path d="M12 5v14M5 12h14" />);
+export const IconStack = base(<><path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z" /><path d="m3 12 9 4.5 9-4.5" /><path d="m3 16.5 9 4.5 9-4.5" /></>);
+export const IconUpload = base(<><path d="M12 20V9M7 14l5-5 5 5M5 4h14" /></>);
+export const IconTrash = base(<><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></>);
 export const IconPhone = base(<><rect x="7" y="2.5" width="10" height="19" rx="2" /><path d="M11 18h2" /></>);

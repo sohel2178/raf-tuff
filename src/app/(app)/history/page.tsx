@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { AnimatePresence, LazyMotion, MotionConfig, m } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import { Suspense, useEffect, useState } from 'react';
 import { IconDownload, IconFilter } from '@/components/icons';
 import { RechargeDrawer } from '@/components/recharge/RechargeDrawer';
@@ -15,10 +15,9 @@ import { api, download } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { OPEN_STATUSES, OPERATORS, OPERATOR_BY_CODE, STATUSES, STATUS_LABEL } from '@/lib/constants';
 import { fmtDay, taka } from '@/lib/format';
+import { EASE_OUT } from '@/lib/motion';
 import { useDebounced, useUrlState } from '@/lib/hooks';
 import type { Operator, Paged, Recharge, RechargeStatus } from '@/lib/types';
-
-const loadMotionFeatures = () => import('@/lib/motionFeatures').then((mod) => mod.default);
 
 export default function HistoryPage() {
   return (
@@ -108,8 +107,7 @@ function History() {
   };
 
   return (
-    <LazyMotion features={loadMotionFeatures} strict>
-    <MotionConfig reducedMotion="user">
+    <>
       <PageHeader
         title="History"
         sub="Every recharge from every staff member and API key."
@@ -173,7 +171,7 @@ function History() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+            transition={{ duration: 0.28, ease: EASE_OUT }}
             className="overflow-hidden"
           >
             <Panel className="mt-3 grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-4">
@@ -308,7 +306,6 @@ function History() {
       </Panel>
 
       <RechargeDrawer trxid={open} onClose={() => setOpen(null)} />
-    </MotionConfig>
-    </LazyMotion>
+    </>
   );
 }

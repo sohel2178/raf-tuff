@@ -2,9 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { AnimatePresence, m } from 'framer-motion';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { SlidingMarker } from '@/components/motion';
 import { PinPad } from '@/components/recharge/PinPad';
 import { Receipt } from '@/components/recharge/Receipt';
 import { Button } from '@/components/ui/button';
@@ -13,7 +15,8 @@ import { OperatorMark, StatusBadge } from '@/components/ui/status';
 import { ApiError, api, newIdempotencyKey } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { MIN_AMOUNT, OPEN_STATUSES, OPERATORS, PHONE_REGEX, QUICK_AMOUNTS, detectOperator } from '@/lib/constants';
-import { creatorName, dhakaDayKey, dhakaToday, fmtDateTime, fmtDay, fmtPhone, taka, timeAgo } from '@/lib/format';
+import { cleanNumber, creatorName, dhakaDayKey, dhakaToday, fmtDateTime, fmtDay, fmtPhone, taka, timeAgo } from '@/lib/format';
+import { EASE_OUT, dur, feed, spring, unfold } from '@/lib/motion';
 import type { Operator, Paged, Recharge, RechargeStatus, RechargeType, Totals } from '@/lib/types';
 
 type Draft = { number: string; operator: Operator; type: RechargeType; amount: number };
@@ -21,14 +24,6 @@ type LastRow = { trxid: string; amount: number; status: RechargeStatus; createdA
 type NumberInfo = {
   summary: { usualOperator: Operator | null; lastRecharge: LastRow | null; lastSuccess: LastRow | null; count: number };
 };
-
-/** Accepts pasted +8801…, 8801…, spaces, dashes. */
-function cleanNumber(raw: string) {
-  let d = raw.replace(/\D/g, '');
-  if (d.startsWith('880')) d = d.slice(2);
-  else if (d.startsWith('88') && d.length > 11) d = d.slice(2);
-  return d.slice(0, 11);
-}
 
 export default function RechargePage() {
   return (
@@ -45,6 +40,14 @@ function RechargeFlow() {
   const [result, setResult] = useState<Recharge | null>(null);
   const initialNumber = cleanNumber(sp.get('number') ?? '');
 
+  // Steps move as one track: forward slides left, back (Edit) slides right.
+  const order = { form: 0, confirm: 1, done: 2 } as const;
+  const prev = useRef(step);
+  const dir = order[step] >= order[prev.current] ? 1 : -1;
+  useEffect(() => {
+    prev.current = step;
+  }, [step]);
+
   const restart = (keepNumber?: Draft) => {
     setResult(null);
     setDraft(keepNumber ?? null);
@@ -53,6 +56,20 @@ function RechargeFlow() {
 
   return (
     <div className="mx-auto max-w-[520px]">
+      <AnimatePresence mode="wait" initial={false} custom={dir}>
+        <m.div
+          key={step}
+          custom={dir}
+          variants={{
+            enter: (d: number) => ({ opacity: 0, x: d * 36 }),
+            center: { opacity: 1, x: 0, transition: { duration: dur.base, ease: EASE_OUT } },
+            exit: (d: number) => ({ opacity: 0, x: d * -36, transition: { duration: dur.fast, ease: EASE_OUT } }),
+          }}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          onAnimationStart={() => window.scrollTo({ top: 0 })}
+        >
       {step === 'form' && (
         <RechargeForm
           initial={draft ?? (initialNumber ? { number: initialNumber } : undefined)}
@@ -73,6 +90,8 @@ function RechargeFlow() {
         />
       )}
       {step === 'done' && result && <Result initial={result} onNew={() => restart()} onAgain={() => draft && restart(draft)} />}
+        </m.div>
+      </AnimatePresence>
     </div>
   );
 }
@@ -225,7 +244,20 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
             aria-describedby="number-help"
             className="tabular h-16 min-w-0 flex-1 bg-transparent font-display focus-visible:outline-none text-[30px] font-bold tracking-tight outline-none placeholder:font-medium placeholder:text-line-strong sm:text-[34px]"
           />
-          {operator && <OperatorMark op={operator} size="lg" />}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {operator && (
+              <m.span
+                key={operator}
+                initial={{ scale: 0.4, opacity: 0, rotate: -10 }}
+                animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                exit={{ scale: 0.6, opacity: 0, transition: { duration: dur.fast } }}
+                transition={spring.stamp}
+                className="inline-flex"
+              >
+                <OperatorMark op={operator} size="lg" />
+              </m.span>
+            )}
+          </AnimatePresence>
         </div>
         <p id="number-help" className={clsx('mt-1.5 min-h-5 text-sm', touched && errors.number ? 'text-danger' : 'text-muted')}>
           {touched && errors.number
@@ -238,7 +270,13 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
                   ? 'Operator guessed from the prefix. Change it if the SIM was ported.'
                   : ' '}
         </p>
-        {complete && info.data?.summary.lastRecharge && <LastRechargeCard number={number} summary={info.data.summary} />}
+        <AnimatePresence initial={false}>
+          {complete && info.data?.summary.lastRecharge && (
+            <m.div key="last" {...unfold} className="overflow-hidden">
+              <LastRechargeCard number={number} summary={info.data.summary} />
+            </m.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {recentNumbers.length > 0 && !number && (
@@ -276,12 +314,13 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
                   setOpSource('manual');
                 }}
                 className={clsx(
-                  'flex h-14 min-w-0 flex-col items-center justify-center rounded-lg border-2 px-1 text-center text-[12px] leading-tight font-medium hyphens-manual transition-colors sm:text-[13px]',
-                  on ? 'border-ink bg-surface text-ink' : 'border-transparent bg-paper-2 text-ink-2 hover:border-line-strong',
+                  'relative flex h-14 min-w-0 flex-col items-center justify-center rounded-lg border-2 border-transparent bg-paper-2 px-1 text-center text-[12px] leading-tight font-medium hyphens-manual transition-colors active:scale-[0.97] sm:text-[13px]',
+                  on ? 'text-ink' : 'text-ink-2 hover:border-line-strong',
                 )}
               >
-                <span className="mb-1 h-1.5 w-6 shrink-0 rounded-full" style={{ backgroundColor: o.color }} aria-hidden />
-                <span className="max-w-full break-words">{o.name.replace('Grameenphone', 'Grameen\u00ADphone').replace('Banglalink', 'Bangla\u00ADlink')}</span>
+                {on && <SlidingMarker id="op-pick" className="-inset-0.5 rounded-lg border-2 border-ink bg-surface" />}
+                <span className="relative mb-1 h-1.5 w-6 shrink-0 rounded-full" style={{ backgroundColor: o.color }} aria-hidden />
+                <span className="relative max-w-full break-words">{o.name.replace('Grameenphone', 'Grameen\u00ADphone').replace('Banglalink', 'Bangla\u00ADlink')}</span>
               </button>
             );
           })}
@@ -337,11 +376,12 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
               onClick={() => setAmountText(String(a))}
               aria-pressed={amount === a}
               className={clsx(
-                'tabular h-10 min-w-16 rounded-full border px-4 font-medium transition-colors',
-                amount === a ? 'border-ink bg-ink text-white' : 'border-line-strong bg-surface hover:border-ink-2',
+                'tabular relative h-10 min-w-16 rounded-full border px-4 font-medium transition-colors duration-200 active:scale-[0.96]',
+                amount === a ? 'border-ink text-white' : 'border-line-strong bg-surface hover:border-ink-2',
               )}
             >
-              {taka(a)}
+              {amount === a && <SlidingMarker id="amount-chip" className="-inset-px rounded-full bg-ink" />}
+              <span className="relative">{taka(a)}</span>
             </button>
           ))}
         </div>
@@ -416,7 +456,7 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
     staleTime: 60_000,
   });
 
-  const m = useMutation({
+  const send = useMutation({
     mutationFn: () =>
       api<{ recharge: Recharge }>('/api/recharges', {
         method: 'POST',
@@ -441,12 +481,12 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
     },
   });
 
-  const err = m.error instanceof ApiError ? m.error : null;
+  const err = send.error instanceof ApiError ? send.error : null;
   const pinError = err && ['INVALID_PIN', 'PIN_LOCKED', 'PIN_NOT_CONFIGURED'].includes(err.code) ? err.message : null;
   const locked = err?.code === 'PIN_LOCKED' || err?.code === 'PIN_NOT_CONFIGURED';
   const isLimit = err && ['LIMIT_EXCEEDED', 'DAILY_LIMIT_EXCEEDED', 'INSUFFICIENT_BALANCE'].includes(err.code);
-  const otherError = m.error && !pinError ? m.error : null;
-  const canSend = pin.length === 6 && !locked && !isLimit && !m.isPending;
+  const otherError = send.error && !pinError ? send.error : null;
+  const canSend = pin.length === 6 && !locked && !isLimit && !send.isPending;
 
   return (
     <div>
@@ -456,24 +496,26 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (canSend) m.mutate();
+          if (canSend) send.mutate();
         }}
       >
-        <Receipt className="animate-slip-in mt-6" {...draft}>
+        <m.div variants={feed} initial="hidden" animate="show" className="mt-6">
+        <Receipt {...draft}>
           <div className="receipt-rule my-5" />
           <PinPad
             ref={pinRef}
             value={pin}
             onChange={(v) => {
               setPin(v);
-              if (err?.code === 'INVALID_PIN') m.reset();
+              if (err?.code === 'INVALID_PIN') send.reset();
             }}
             error={pinError}
-            disabled={locked || m.isPending}
+            disabled={locked || send.isPending}
             shakeKey={shake}
             autoFocus
           />
         </Receipt>
+        </m.div>
         {otherError && (
           <div className="mt-5 rounded-lg border border-danger/30 bg-danger-tint px-4 py-3 text-sm text-[#8d1424]" role="alert">
             <p className="font-medium">{otherError.message}</p>
@@ -481,11 +523,11 @@ function Confirm({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; 
           </div>
         )}
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
-          <Button type="button" variant="secondary" size="lg" onClick={onBack} disabled={m.isPending} className="sm:flex-1">
+          <Button type="button" variant="secondary" size="lg" onClick={onBack} disabled={send.isPending} className="sm:flex-1">
             {isLimit ? 'Change amount' : 'Edit'}
           </Button>
-          <Button type="submit" size="lg" loading={m.isPending} disabled={!canSend} className="sm:flex-[2]">
-            {m.isPending ? 'Sending…' : `Send ${taka(draft.amount)}`}
+          <Button type="submit" size="lg" loading={send.isPending} disabled={!canSend} className="sm:flex-[2]">
+            {send.isPending ? 'Sending…' : `Send ${taka(draft.amount)}`}
           </Button>
         </div>
       </form>
@@ -504,6 +546,14 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
   });
   const r = q.data;
   const open = OPEN_STATUSES.includes(r.status);
+  // Flash once when it turns Successful while you're watching.
+  const wasOpen = useRef(OPEN_STATUSES.includes(initial.status));
+  const [flash, setFlash] = useState(0);
+  useEffect(() => {
+    if (r.status === 'Success' && wasOpen.current) setFlash((n) => n + 1);
+    wasOpen.current = OPEN_STATUSES.includes(r.status);
+  }, [r.status]);
+  const heading = open ? 'Recharge sent' : r.status === 'Success' ? 'Done' : 'Recharge update';
   const copy: Record<string, string> = {
     Pending: 'Queued. Sending to the operator…',
     Processing: 'Sent. Waiting for the operator to confirm — this usually takes under a minute.',
@@ -517,12 +567,29 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
 
   return (
     <div>
-      <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">{open ? 'Recharge sent' : r.status === 'Success' ? 'Done' : 'Recharge update'}</h1>
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div key={heading} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: dur.fast }}>
+          <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">{heading}</h1>
+        </m.div>
+      </AnimatePresence>
       <p className="mt-1 text-muted" aria-live="polite">
         {copy[r.status]}
       </p>
+      <div className="relative mt-6">
+        <AnimatePresence>
+          {flash > 0 && (
+            <m.div
+              key={flash}
+              aria-hidden
+              className="pointer-events-none absolute -inset-2 rounded-2xl bg-flag/25"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.98, 1.02, 1.03] }}
+              transition={{ duration: 0.9, ease: EASE_OUT }}
+            />
+          )}
+        </AnimatePresence>
+      <m.div variants={feed} initial="hidden" animate="show" className="relative">
       <Receipt
-        className="mt-6"
         number={r.number}
         operator={r.operator}
         type={r.type}
@@ -531,6 +598,8 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
         trxid={r.trxid}
         at={r.createdAt}
       />
+      </m.div>
+      </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <Button size="lg" onClick={onNew}>
           New recharge

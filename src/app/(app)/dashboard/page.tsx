@@ -1,18 +1,21 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, m } from 'framer-motion';
 import Link from 'next/link';
 import { useState } from 'react';
 import { AmountBars } from '@/components/charts/AmountBars';
 import { IconBolt, IconRefresh } from '@/components/icons';
+import { CountUp, LiveStatus } from '@/components/motion';
 import { RechargeDrawer } from '@/components/recharge/RechargeDrawer';
 import { Button } from '@/components/ui/button';
 import { Empty, ErrorNote, Panel, PanelHead, Skeleton } from '@/components/ui/misc';
-import { OperatorMark, StatusBadge, statusColor } from '@/components/ui/status';
+import { OperatorMark, statusColor } from '@/components/ui/status';
 import { ApiError, api } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { OPEN_STATUSES } from '@/lib/constants';
 import { fmtPhone, num, pct, taka, timeAgo } from '@/lib/format';
+import { EASE_OUT, rise, unfold } from '@/lib/motion';
 import type { Paged, Recharge, Totals } from '@/lib/types';
 
 type Summary = {
@@ -80,20 +83,33 @@ export default function Dashboard() {
       {summary.error && <ErrorNote error={summary.error} retry={() => summary.refetch()} />}
 
       {/* Headline: today's successful amount */}
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div className="col-span-2 bg-ink px-5 py-5 text-white sm:px-6 lg:col-span-1">
+      {/* The page's one orchestrated moment: today's total counts up, the tiles follow */}
+      <m.section
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.07 } } }}
+        className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-[1.4fr_1fr_1fr_1fr]"
+      >
+        <m.div variants={rise} className="col-span-2 bg-ink px-5 py-5 text-white sm:px-6 lg:col-span-1">
           <p className="text-white/70">Topped up today</p>
           {t ? (
-            <p className="tabular mt-1 font-display text-[44px] leading-none font-extrabold tracking-[-0.02em]">{taka(t.amount)}</p>
+            <p className="mt-1 font-display text-[44px] leading-none font-extrabold tracking-[-0.02em]">
+              <CountUp value={t.amount} fromZero format={(v) => taka(Math.round(v))} />
+            </p>
           ) : (
             <Skeleton className="mt-2 h-11 w-40 bg-white/10" />
           )}
           <p className="mt-2 text-sm text-white/70">Counts confirmed recharges only</p>
-        </div>
-        <Stat label="Recharges" value={t && num(t.count)} sub={t && `${num(t.success)} successful`} />
-        <Stat label="Success rate" value={t && pct(t.successRate)} sub={t && `${num(t.failed + t.cancel)} failed or cancelled`} />
+        </m.div>
+        <Stat label="Recharges" value={t?.count} format={(v) => num(Math.round(v))} sub={t && `${num(t.success)} successful`} />
+        <Stat
+          label="Success rate"
+          value={t ? (t.successRate ?? null) : undefined}
+          format={(v) => pct(Math.round(v))}
+          sub={t && `${num(t.failed + t.cancel)} failed or cancelled`}
+        />
         {isAdmin ? (
-          <div className="col-span-2 bg-surface px-5 py-4 lg:col-span-1">
+          <m.div variants={rise} className="col-span-2 bg-surface px-5 py-4 lg:col-span-1">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted">Provider balance</p>
               <button
@@ -101,7 +117,13 @@ export default function Dashboard() {
                 className="rounded p-1 text-muted hover:text-ink"
                 aria-label="Refresh balance"
               >
-                <IconRefresh className="size-4" />
+                <m.span
+                  className="block"
+                  animate={balance.isFetching ? { rotate: 360 } : { rotate: 0 }}
+                  transition={balance.isFetching ? { duration: 0.8, ease: 'linear', repeat: Infinity } : { duration: 0 }}
+                >
+                  <IconRefresh className="size-4" />
+                </m.span>
               </button>
             </div>
             {balance.isLoading ? (
@@ -117,24 +139,29 @@ export default function Dashboard() {
               )
             ) : (
               <>
-                <p className="tabular mt-1 font-display text-2xl font-bold">{taka(balance.data?.balance)}</p>
+                <p className="mt-1 font-display text-2xl font-bold">
+                  {balance.data?.balance != null ? <CountUp value={balance.data.balance} format={(v) => taka(Math.round(v))} /> : taka(null)}
+                </p>
                 <p className="mt-0.5 text-sm text-muted">
                   {balance.data?.sandbox ? 'Sandbox mode' : `Drive balance ${taka(balance.data?.driveBalance)}`}
                 </p>
               </>
             )}
-          </div>
+          </m.div>
         ) : (
           <Stat
             wide
             label="Your limit"
-            value={taka(user.rechargeLimit)}
+            value={user.rechargeLimit ?? null}
+            format={(v) => taka(Math.round(v))}
             sub={user.dailyLimit != null ? `${taka(user.dailyLimit)} per day` : 'per recharge'}
           />
         )}
-      </section>
+      </m.section>
 
+      <AnimatePresence initial={false}>
       {openTotal > 0 && (
+        <m.div key="open" {...unfold} className="overflow-hidden">
         <Link
           href={o!.needsReview ? '/history?needsReview=true' : '/history?status=Pending,Processing,Unknown'}
           className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-marigold/50 bg-marigold-tint px-5 py-3 hover:border-marigold"
@@ -149,7 +176,9 @@ export default function Dashboard() {
           </span>
           <span className="text-sm font-medium">View</span>
         </Link>
+        </m.div>
       )}
+      </AnimatePresence>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_1fr] xl:items-start">
         <Panel>
@@ -173,11 +202,19 @@ export default function Dashboard() {
           )}
           {recent.data && recent.data.items.length > 0 && (
             <ul className="divide-y divide-line">
-              {recent.data.items.map((r) => (
-                <li key={r.trxid}>
-                  <RowButton r={r} onOpen={setOpen} />
-                </li>
-              ))}
+              <AnimatePresence initial={false} mode="popLayout">
+                {recent.data.items.map((r) => (
+                  <m.li
+                    key={r.trxid}
+                    layout="position"
+                    initial={{ opacity: 0, y: -10, backgroundColor: 'var(--color-flag-tint)' }}
+                    animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(255,255,255,0)', transition: { duration: 0.3, ease: EASE_OUT, backgroundColor: { duration: 1.4 } } }}
+                    exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                  >
+                    <RowButton r={r} onOpen={setOpen} />
+                  </m.li>
+                ))}
+              </AnimatePresence>
             </ul>
           )}
         </Panel>
@@ -199,7 +236,7 @@ function RowButton({ r, onOpen }: { r: Recharge; onOpen: (t: string) => void }) 
         </p>
       </div>
       <span className="tabular w-16 text-right font-semibold">{taka(r.amount)}</span>
-      <StatusBadge status={r.status} className="hidden !px-2 !text-xs sm:inline-flex" />
+      <LiveStatus status={r.status} compact className="hidden sm:inline-flex" />
       <StatusDot status={r.status} />
     </button>
   );
@@ -209,12 +246,29 @@ function StatusDot({ status }: { status: Recharge['status'] }) {
   return <span className="size-2.5 shrink-0 rounded-full sm:hidden" style={{ backgroundColor: statusColor[status] }} aria-label={status} />;
 }
 
-function Stat({ label, value, sub, wide }: { label: string; value?: string | null; sub?: string | null; wide?: boolean }) {
+function Stat({
+  label,
+  value,
+  format,
+  sub,
+  wide,
+}: {
+  label: string;
+  /** undefined = loading, null = no figure */
+  value?: number | null;
+  format: (v: number) => string;
+  sub?: string | null;
+  wide?: boolean;
+}) {
   return (
-    <div className={wide ? 'col-span-2 bg-surface px-5 py-4 lg:col-span-1' : 'bg-surface px-5 py-4'}>
+    <m.div variants={rise} className={wide ? 'col-span-2 bg-surface px-5 py-4 lg:col-span-1' : 'bg-surface px-5 py-4'}>
       <p className="text-sm text-muted">{label}</p>
-      {value == null ? <Skeleton className="mt-2 h-7 w-20" /> : <p className="tabular mt-1 font-display text-2xl font-bold">{value}</p>}
+      {value === undefined ? (
+        <Skeleton className="mt-2 h-7 w-20" />
+      ) : (
+        <p className="mt-1 font-display text-2xl font-bold">{value === null ? '—' : <CountUp value={value} format={format} />}</p>
+      )}
       {sub && <p className="mt-0.5 text-sm text-muted">{sub}</p>}
-    </div>
+    </m.div>
   );
 }

@@ -1,12 +1,15 @@
 'use client';
 
 import clsx from 'clsx';
+import { m } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth, useUser } from '@/lib/auth';
 import { taka } from '@/lib/format';
-import { IconBolt, IconChart, IconCog, IconHome, IconKey, IconList, IconLogout, IconMore, IconUsers } from './icons';
+import { EASE_OUT } from '@/lib/motion';
+import { SlidingMarker } from './motion';
+import { IconBolt, IconStack, IconChart, IconCog, IconHome, IconKey, IconList, IconLogout, IconMore, IconUsers } from './icons';
 import { Drawer } from './ui/overlay';
 
 type Item = { href: string; label: string; icon: React.FC<{ className?: string }>; admin?: boolean };
@@ -14,6 +17,7 @@ type Item = { href: string; label: string; icon: React.FC<{ className?: string }
 const NAV: Item[] = [
   { href: '/dashboard', label: 'Today', icon: IconHome },
   { href: '/recharge', label: 'New recharge', icon: IconBolt },
+  { href: '/bulk', label: 'Bulk recharge', icon: IconStack },
   { href: '/history', label: 'History', icon: IconList },
   { href: '/reports', label: 'Reports', icon: IconChart },
   { href: '/users', label: 'Users', icon: IconUsers, admin: true },
@@ -55,13 +59,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={i.href}
                 aria-current={active ? 'page' : undefined}
                 className={clsx(
-                  'flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors',
+                  'relative flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors duration-200',
                   primary && !active && 'text-flag',
-                  active ? 'bg-ink text-white' : 'text-ink-2 hover:bg-paper-2',
+                  active ? 'text-white' : 'text-ink-2 hover:bg-paper-2',
                 )}
               >
-                <i.icon className="size-[18px]" />
-                {i.label}
+                {active && <SlidingMarker id="nav-rail" className="inset-0 rounded-lg bg-ink" />}
+                <i.icon className="relative size-[18px]" />
+                <span className="relative">{i.label}</span>
               </Link>
             );
           })}
@@ -86,7 +91,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="min-w-0 px-4 pt-5 pb-28 sm:px-6 lg:px-10 lg:pt-9 lg:pb-12">
-        <div className="mx-auto max-w-[1180px]">{children}</div>
+        {/* Each screen arrives with a short rise; keyed on the route, not on query changes */}
+        <m.div
+          key={path}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: EASE_OUT }}
+          className="mx-auto max-w-[1180px]"
+        >
+          {children}
+        </m.div>
       </main>
 
       {/* Mobile tab bar */}
@@ -101,14 +115,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           aria-current={isActive(path, '/recharge') ? 'page' : undefined}
           className="flex flex-col items-center gap-1 pb-2"
         >
-          <span
+          <m.span
+            whileTap={{ scale: 0.9 }}
+            animate={{ scale: isActive(path, '/recharge') ? 1.04 : 1 }}
             className={clsx(
               '-mt-5 grid size-14 place-items-center rounded-full text-white shadow-[0_6px_16px_-4px_rgba(0,81,59,0.55)] ring-4 ring-surface',
               isActive(path, '/recharge') ? 'bg-flag-deep' : 'bg-flag',
             )}
           >
             <IconBolt className="size-6" />
-          </span>
+          </m.span>
           <span className="text-[11px] font-medium text-flag">Recharge</span>
         </Link>
         <Tab href="/reports" label="Reports" icon={IconChart} active={isActive(path, '/reports')} />
@@ -121,7 +137,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Drawer open={more} onClose={() => setMore(false)} title={user.name}>
         <div className="flex flex-col gap-1">
           {items
-            .filter((i) => ['/users', '/api-keys', '/settings'].includes(i.href))
+            .filter((i) => ['/bulk', '/users', '/api-keys', '/settings'].includes(i.href))
             .map((i) => (
               <Link
                 key={i.href}
@@ -146,8 +162,9 @@ function Tab({ href, label, icon: I, active }: { href: string; label: string; ic
     <Link
       href={href}
       aria-current={active ? 'page' : undefined}
-      className={clsx('flex h-16 flex-col items-center justify-center gap-1', active ? 'text-ink' : 'text-muted')}
+      className={clsx('relative flex h-16 flex-col items-center justify-center gap-1 transition-colors', active ? 'text-ink' : 'text-muted')}
     >
+      {active && <SlidingMarker id="nav-tab" className="top-0 left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-b-full bg-ink" />}
       <I className="size-[22px]" />
       <span className="text-[11px] font-medium">{label}</span>
     </Link>

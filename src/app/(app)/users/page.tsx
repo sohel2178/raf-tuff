@@ -3,11 +3,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
+import { AnimatePresence, m as M } from 'framer-motion';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { AdminOnly } from '@/components/AppShell';
 import { IconPlus } from '@/components/icons';
+import { SlidingMarker } from '@/components/motion';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Segmented } from '@/components/ui/field';
 import { Empty, ErrorNote, PageHeader, Panel, Skeleton } from '@/components/ui/misc';
@@ -16,6 +18,7 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError, api } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { taka, timeAgo } from '@/lib/format';
+import { EASE_OUT } from '@/lib/motion';
 import type { Role, User } from '@/lib/types';
 
 export default function UsersPage() {
@@ -71,12 +74,13 @@ function Users() {
             aria-selected={tab === value}
             onClick={() => setTab(value)}
             className={clsx(
-              '-mb-px flex items-center gap-2 border-b-2 pb-2.5 font-medium transition-colors',
-              tab === value ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink',
+              'relative -mb-px flex items-center gap-2 pb-2.5 font-medium transition-colors',
+              tab === value ? 'text-ink' : 'text-muted hover:text-ink',
             )}
           >
+            {tab === value && <SlidingMarker id="users-tab" className="inset-x-0 -bottom-px h-0.5 rounded-full bg-ink" />}
             {label}
-            <span className={clsx('tabular rounded-full px-2 text-xs leading-5', tab === value ? 'bg-ink text-white' : 'bg-paper-2 text-muted')}>
+            <span className={clsx('tabular rounded-full px-2 text-xs leading-5 transition-colors', tab === value ? 'bg-ink text-white' : 'bg-paper-2 text-muted')}>
               {q.data ? count(value) : '·'}
             </span>
           </button>
@@ -101,13 +105,20 @@ function Users() {
           />
         )}
         {items.length > 0 && (
-          <ul className="divide-y divide-line">
+          <M.ul key={tab} className="divide-y divide-line" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+            <AnimatePresence initial={false} mode="popLayout">
             {items.map((u) => (
-              <li key={u.id}>
+              <M.li
+                key={u.id}
+                layout="position"
+                initial={{ opacity: 0, y: -8, backgroundColor: 'var(--color-flag-tint)' }}
+                animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(255,255,255,0)', transition: { duration: 0.3, ease: EASE_OUT, backgroundColor: { duration: 1.6 } } }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+              >
                 <button onClick={() => setEditing(u)} className="flex w-full items-center gap-4 px-4 py-3.5 text-left hover:bg-paper/60 sm:px-5">
                   <span
                     className={clsx(
-                      'grid size-10 shrink-0 place-items-center rounded-full font-display font-bold',
+                      'grid size-10 shrink-0 place-items-center rounded-full font-display font-bold transition-opacity duration-300',
                       u.role === 'admin' ? 'bg-ink text-white' : 'bg-flag-tint text-flag-deep',
                       !u.active && 'opacity-40',
                     )}
@@ -136,9 +147,10 @@ function Users() {
                     )}
                   </div>
                 </button>
-              </li>
+              </M.li>
             ))}
-          </ul>
+            </AnimatePresence>
+          </M.ul>
         )}
       </Panel>
       {inactiveCount > 0 && (

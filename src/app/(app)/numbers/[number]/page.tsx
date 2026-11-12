@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { use, useState } from 'react';
 import { IconBolt } from '@/components/icons';
 import { RechargeDrawer } from '@/components/recharge/RechargeDrawer';
-import { RechargeList } from '@/components/recharge/RechargeList';
+import { CountUp } from '@/components/motion';
+import { HistoryLedger } from '@/components/recharge/HistoryLedger';
 import { Empty, ErrorNote, Panel, PanelHead, Skeleton } from '@/components/ui/misc';
 import { OperatorMark } from '@/components/ui/status';
 import { api } from '@/lib/api';
@@ -68,21 +69,29 @@ export default function NumberPage({ params }: { params: Promise<{ number: strin
       {q.error && <ErrorNote error={q.error} retry={() => q.refetch()} />}
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
-        {[
-          ['Total topped up', s ? taka(s.totalAmount) : null, s ? `${s.successCount} successful` : null],
-          ['Average recharge', s ? taka(s.averageAmount) : null, 'successful only'],
-          ['Last success', s ? (s.lastSuccess ? taka(s.lastSuccess.amount) : 'None yet') : null, s?.lastSuccess ? fmtDateTime(s.lastSuccess.completedAt ?? s.lastSuccess.createdAt) : ' '],
-          ['Attempts', s ? String(s.count) : null, s ? `${s.failedCount} failed · ${s.pendingCount} open` : null],
-        ].map(([label, value, sub]) => (
+        {(
+          [
+            ['Total topped up', s?.totalAmount, s ? `${s.successCount} successful` : null, true],
+            ['Average recharge', s?.averageAmount, 'successful only', true],
+            ['Last success', s ? (s.lastSuccess ? s.lastSuccess.amount : 'None yet') : undefined, s?.lastSuccess ? fmtDateTime(s.lastSuccess.completedAt ?? s.lastSuccess.createdAt) : ' ', true],
+            ['Attempts', s?.count, s ? `${s.failedCount} failed, ${s.pendingCount} open` : null, false],
+          ] as [string, number | string | undefined, string | null, boolean][]
+        ).map(([label, value, sub, money]) => (
           <div key={label} className="bg-surface px-4 py-4 sm:px-5">
             <p className="text-sm text-muted">{label}</p>
-            {value == null ? <Skeleton className="mt-2 h-7 w-24" /> : <p className="tabular mt-1 font-display text-2xl font-bold">{value}</p>}
+            {value === undefined ? (
+              <Skeleton className="mt-2 h-7 w-24" />
+            ) : (
+              <p className="mt-1 font-display text-2xl font-bold">
+                {typeof value === 'string' ? value : <CountUp value={value} fromZero format={(v) => (money ? taka(Math.round(v)) : String(Math.round(v)))} />}
+              </p>
+            )}
             <p className="mt-0.5 text-sm text-muted">{sub}</p>
           </div>
         ))}
       </div>
 
-      <Panel className="mt-6 overflow-hidden">
+      <Panel className="mt-6 overflow-clip">
         <PanelHead title="Recharges" right={s && <span className="text-sm text-muted">since {fmtDateTime(s.firstAt)}</span>} />
         {q.isLoading && (
           <div className="space-y-2 p-4">
@@ -94,7 +103,7 @@ export default function NumberPage({ params }: { params: Promise<{ number: strin
         {q.data && q.data.items.length === 0 && (
           <Empty title="No recharges to this number yet" action={<Link className="font-medium text-flag hover:underline" href={`/recharge?number=${number}`}>Send the first one</Link>} />
         )}
-        {q.data && q.data.items.length > 0 && <RechargeList items={q.data.items} onOpen={setOpen} showEmployee linkNumbers={false} />}
+        {q.data && q.data.items.length > 0 && <HistoryLedger items={q.data.items} page={1} totalPages={1} onOpen={setOpen} linkNumbers={false} />}
       </Panel>
       <RechargeDrawer trxid={open} onClose={() => setOpen(null)} />
     </>

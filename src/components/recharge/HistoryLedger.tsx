@@ -1,14 +1,15 @@
 'use client';
 
 import clsx from 'clsx';
-import { AnimatePresence, LayoutGroup, animate, m, useMotionValue, useTransform } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, m } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef } from 'react';
-import { OperatorMark, StatusBadge } from '@/components/ui/status';
+import { CountUp, LiveStatus } from '@/components/motion';
+import { OperatorMark } from '@/components/ui/status';
 import { creatorName, dayLabel, dhakaDayKey, fmtClock, fmtDateTime, fmtPhone, taka } from '@/lib/format';
+import { EASE_OUT } from '@/lib/motion';
 import type { Recharge, RechargeStatus } from '@/lib/types';
 
-const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 /** Only rows that need a second look get an edge; successful ones stay quiet. */
 const edge: Partial<Record<RechargeStatus, string>> = {
@@ -31,11 +32,13 @@ export function HistoryLedger({
   page,
   totalPages,
   onOpen,
+  linkNumbers = true,
 }: {
   items: Recharge[];
   page: number;
   totalPages: number;
   onOpen: (trxid: string) => void;
+  linkNumbers?: boolean;
 }) {
   const groups = useMemo(() => {
     const map = new Map<string, Group>();
@@ -80,7 +83,7 @@ export function HistoryLedger({
                 layout="position"
                 aria-labelledby={headingId}
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE, delay: firstPaint.current ? gi * 0.06 : 0 } }}
+                animate={{ opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE_OUT, delay: firstPaint.current ? gi * 0.06 : 0 } }}
                 exit={{ opacity: 0, transition: { duration: 0.15 } }}
               >
                 <header className="sticky top-14 z-10 border-b border-dashed border-line-strong bg-surface/95 px-4 pt-4 pb-2.5 backdrop-blur-sm sm:px-5 lg:top-0">
@@ -94,7 +97,7 @@ export function HistoryLedger({
                         {g.items.length} recharge{g.items.length === 1 ? '' : 's'}
                       </span>
                       <span>
-                        <CountUp value={g.success} className="tabular font-semibold text-flag-deep" /> successful
+                        <CountUp value={g.success} format={(v) => taka(Math.round(v))} className="font-semibold text-flag-deep" /> successful
                       </span>
                     </p>
                   </div>
@@ -112,7 +115,7 @@ export function HistoryLedger({
                 <ul>
                   <AnimatePresence mode="popLayout" initial={false}>
                     {g.items.map((r) => (
-                      <Row key={r.trxid} r={r} onOpen={onOpen} />
+                      <Row key={r.trxid} r={r} onOpen={onOpen} linkNumber={linkNumbers} />
                     ))}
                   </AnimatePresence>
                 </ul>
@@ -125,7 +128,7 @@ export function HistoryLedger({
   );
 }
 
-function Row({ r, onOpen, ref }: { r: Recharge; onOpen: (trxid: string) => void; ref?: React.Ref<HTMLLIElement> }) {
+function Row({ r, onOpen, linkNumber, ref }: { r: Recharge; onOpen: (trxid: string) => void; linkNumber: boolean; ref?: React.Ref<HTMLLIElement> }) {
   const by = r.source === 'external-api' ? 'API' : creatorName(r.createdBy);
   const color = edge[r.status];
   return (
@@ -135,7 +138,7 @@ function Row({ r, onOpen, ref }: { r: Recharge; onOpen: (trxid: string) => void;
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: { duration: 0.14 } }}
-      transition={{ duration: 0.26, ease: EASE }}
+      transition={{ duration: 0.26, ease: EASE_OUT }}
       onClick={() => onOpen(r.trxid)}
       className="group relative cursor-pointer border-b border-line last:border-0 hover:bg-paper/60"
     >
@@ -152,13 +155,17 @@ function Row({ r, onOpen, ref }: { r: Recharge; onOpen: (trxid: string) => void;
         <span className="tabular whitespace-nowrap text-muted" title={fmtDateTime(r.createdAt)}>
           {fmtClock(r.createdAt)}
         </span>
-        <Link
-          href={`/numbers/${r.number}`}
-          onClick={(e) => e.stopPropagation()}
-          className="tabular w-fit font-medium whitespace-nowrap hover:text-flag hover:underline"
-        >
-          {fmtPhone(r.number)}
-        </Link>
+        {linkNumber ? (
+          <Link
+            href={`/numbers/${r.number}`}
+            onClick={(e) => e.stopPropagation()}
+            className="tabular w-fit font-medium whitespace-nowrap hover:text-flag hover:underline"
+          >
+            {fmtPhone(r.number)}
+          </Link>
+        ) : (
+          <span className="tabular font-medium whitespace-nowrap">{fmtPhone(r.number)}</span>
+        )}
         <OperatorMark op={r.operator} size="sm" />
         <span className="tabular text-right font-semibold">{taka(r.amount)}</span>
         <LiveStatus status={r.status} />
@@ -185,26 +192,6 @@ function Row({ r, onOpen, ref }: { r: Recharge; onOpen: (trxid: string) => void;
   );
 }
 
-/** A status that changes while you watch (poll/webhook) lands like a receipt stamp. */
-function LiveStatus({ status, compact }: { status: RechargeStatus; compact?: boolean }) {
-  return (
-    <span className="relative inline-flex">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <m.span
-          key={status}
-          initial={{ scale: 1.3, rotate: -7, opacity: 0 }}
-          animate={{ scale: 1, rotate: 0, opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.1 } }}
-          transition={{ type: 'spring', stiffness: 520, damping: 22 }}
-          className="inline-flex"
-        >
-          <StatusBadge status={status} className={compact ? '!px-2 !text-xs' : undefined} />
-        </m.span>
-      </AnimatePresence>
-    </span>
-  );
-}
-
 function OpenButton({ trxid, onOpen }: { trxid: string; onOpen: (trxid: string) => void }) {
   return (
     <button
@@ -221,15 +208,4 @@ function OpenButton({ trxid, onOpen }: { trxid: string; onOpen: (trxid: string) 
       </svg>
     </button>
   );
-}
-
-/** Taka figure that counts to its new value when it changes (not on first paint). */
-function CountUp({ value, className }: { value: number; className?: string }) {
-  const mv = useMotionValue(value);
-  const text = useTransform(mv, (v) => taka(Math.round(v)));
-  useEffect(() => {
-    const controls = animate(mv, value, { duration: 0.5, ease: EASE });
-    return () => controls.stop();
-  }, [mv, value]);
-  return <m.span className={className}>{text}</m.span>;
 }

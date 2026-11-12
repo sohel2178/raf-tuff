@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { Stamp } from '@/components/motion';
 import { OperatorMark } from '@/components/ui/status';
 import { OPERATOR_BY_CODE, STATUS_LABEL } from '@/lib/constants';
 import { fmtPhone, fmtTime, taka } from '@/lib/format';
@@ -55,17 +56,17 @@ export function Receipt({
       )}
       {status && (
         <div className="mt-4 flex justify-end">
-          <div
-            key={status}
+          <Stamp
+            stampKey={status}
+            role="status"
             className={clsx(
-              'animate-stamp inline-block rounded-md border-[3px] px-2.5 py-1 font-display text-lg font-extrabold tracking-wide uppercase',
+              'rounded-md border-[3px] px-2.5 py-1 font-display text-lg font-extrabold tracking-wide uppercase',
               stampTone[status],
               (status === 'Processing' || status === 'Pending') && '[&>span]:animate-pulse-soft',
             )}
-            role="status"
           >
             <span>{STATUS_LABEL[status]}</span>
-          </div>
+          </Stamp>
         </div>
       )}
 

@@ -78,3 +78,32 @@ export type ApiKey = {
   createdBy: { name: string; email: string } | null;
   createdAt: string;
 };
+
+export type BulkItemState = 'queued' | 'sending' | 'sent' | 'rejected' | 'skipped';
+export type BulkStatus = 'running' | 'paused' | 'done' | 'cancelled';
+export type BulkItem = {
+  index: number;
+  number: string;
+  operator: Operator;
+  type: RechargeType;
+  amount: number;
+  state: BulkItemState;
+  trxid: string | null;
+  error: string | null;
+  errorCode: string | null;
+  /** live status of the linked recharge */
+  status: RechargeStatus | null;
+  providerMessage: string | null;
+};
+export type BulkBatch = {
+  id: string;
+  createdBy: { id?: string; name: string } | null;
+  status: BulkStatus;
+  pauseReason: string | null;
+  total: number;
+  amountTotal: number;
+  createdAt: string;
+  finishedAt: string | null;
+  items: BulkItem[];
+};
+export type BulkSummary = Omit<BulkBatch, 'items'> & { counts: Record<BulkItemState, number> };
