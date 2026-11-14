@@ -94,7 +94,10 @@ export default function BulkPage() {
   });
   const lastBy = useMemo(() => new Map((last.data?.items ?? []).map((l) => [l.number, l])), [last.data]);
   // Employees: the lookup must match the current list before sending, so the 28-day check can't be skipped
-  const checking = !isAdmin && validNumbers.length > 0 && (last.isFetching || last.isPlaceholderData || !last.data);
+  const needsCheck = !isAdmin && validNumbers.length > 0;
+  const checking = needsCheck && !last.isError && (last.isFetching || last.isPlaceholderData || !last.data);
+  // A failed check never unlocks Send for employees: they retry instead of spinning forever.
+  const checkFailed = needsCheck && last.isError && !last.isFetching;
   const recentRepeat = (n: string) => !isAdmin && isRecentRepeat(lastBy.get(n)?.lastDone);
 
   const [repeatRows, setRepeatRows] = useState<RepeatRow[]>([]);
@@ -223,21 +226,32 @@ export default function BulkPage() {
                 {total > balance.data.balance ? ' is not enough' : `, ${taka(balance.data.balance - total)} after`}
               </p>
             )}
+            {checkFailed && (
+              <p className="w-full text-sm text-danger" role="alert">
+                Couldn&apos;t check which numbers were recharged recently: {last.error?.message ?? 'server error'}.
+              </p>
+            )}
             {leftToday != null && (
               <p className={clsx('text-sm', total > leftToday ? 'font-medium text-[#6e5000]' : 'text-muted')}>
                 {total > leftToday ? `Only ${taka(leftToday)} left today; rows past that will be rejected` : `${taka(leftToday)} left today`}
               </p>
             )}
           </div>
-          <Button size="lg" disabled={!rows.length || errorCount > 0 || checking} loading={checking && errorCount === 0} onClick={startSend} className="sm:min-w-56">
-            {!rows.length
-              ? 'Add numbers to review'
-              : errorCount
-                ? `Fix ${errorCount} row${errorCount === 1 ? '' : 's'} to continue`
-                : checking
-                  ? 'Checking numbers…'
-                  : `Send ${rows.length} recharge${rows.length === 1 ? '' : 's'}`}
-          </Button>
+          {checkFailed && errorCount === 0 ? (
+            <Button size="lg" variant="secondary" onClick={() => void last.refetch()} className="sm:min-w-56">
+              Couldn&apos;t check numbers. Try again
+            </Button>
+          ) : (
+            <Button size="lg" disabled={!rows.length || errorCount > 0 || checking} loading={checking && errorCount === 0} onClick={startSend} className="sm:min-w-56">
+              {!rows.length
+                ? 'Add numbers to review'
+                : errorCount
+                  ? `Fix ${errorCount} row${errorCount === 1 ? '' : 's'} to continue`
+                  : checking
+                    ? 'Checking numbers…'
+                    : `Send ${rows.length} recharge${rows.length === 1 ? '' : 's'}`}
+            </Button>
+          )}
         </div>
       </div>
 
