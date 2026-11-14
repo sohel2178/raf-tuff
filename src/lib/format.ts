@@ -51,10 +51,9 @@ export function cleanNumber(raw: string) {
   return d.slice(0, 11);
 }
 
-/** 01712345678 → 017 1234 5678 */
+/** Compact, digits only: 01805970131 → 01805970131 */
 export function fmtPhone(n: string) {
-  const d = n.replace(/\D/g, '');
-  return [d.slice(0, 3), d.slice(3, 7), d.slice(7, 11)].filter(Boolean).join(' ');
+  return n.replace(/\D/g, '').slice(0, 11);
 }
 
 export const pct = (n: number | null | undefined) => (n == null ? '—' : `${n}%`);

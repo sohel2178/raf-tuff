@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BatchStatus } from '@/components/bulk/batchStatus';
+import { fmtGap, useBulkPace } from '@/components/bulk/BulkPacePanel';
 import { IconDownload, IconPlus, IconTrash, IconUpload } from '@/components/icons';
 import { CountUp, ShakeOn } from '@/components/motion';
 import { PinPad } from '@/components/recharge/PinPad';
@@ -276,7 +277,7 @@ function TypeInput({ onAdd, full }: { onAdd: (r: BulkRow) => void; full: boolean
             }
           }}
           inputMode="numeric"
-          placeholder="01X XXXX XXXX"
+          placeholder="01XXXXXXXXX"
           aria-label="Mobile number"
           className="tabular h-12 min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3.5 text-lg font-medium focus:border-flag focus:ring-3 focus:ring-flag/15 focus:outline-none"
         />
@@ -543,6 +544,7 @@ function ConfirmBulk({
   const [shake, setShake] = useState(0);
   const [allowDupes, setAllowDupes] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
+  const pace = useBulkPace();
 
   const byOperator = useMemo(() => {
     const map = new Map<Operator, { count: number; amount: number }>();
@@ -650,7 +652,10 @@ function ConfirmBulk({
             {err.message}
           </p>
         )}
-        <p className="mt-3 text-sm text-muted">Numbers are sent one after another. You can leave this page; the batch keeps going.</p>
+        <p className="mt-3 text-sm text-muted">
+          Numbers are sent one at a time{pace.data ? (pace.data.gapMs ? `, ${fmtGap(pace.data.gapMs)} apart` : ' with no pause') : ''}. You can leave this
+          page; the batch keeps going.
+        </p>
       </form>
     </Modal>
   );

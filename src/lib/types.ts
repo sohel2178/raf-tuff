@@ -107,3 +107,5 @@ export type BulkBatch = {
   items: BulkItem[];
 };
 export type BulkSummary = Omit<BulkBatch, 'items'> & { counts: Record<BulkItemState, number> };
+
+export type BulkPace = { gapMs: number; source: 'app' | 'default' };

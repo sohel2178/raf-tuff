@@ -2,6 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { BulkPacePanel } from '@/components/bulk/BulkPacePanel';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { PageHeader, Panel } from '@/components/ui/misc';
@@ -95,6 +96,12 @@ export default function SettingsPage() {
           )}
         </p>
       </Panel>
+
+      {user.role === 'admin' && (
+        <div className="mt-5">
+          <BulkPacePanel />
+        </div>
+      )}
 
       <Panel className="mt-5 p-5">
         <h2 className="font-display text-lg font-bold">Profile</h2>

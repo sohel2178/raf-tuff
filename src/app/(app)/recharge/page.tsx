@@ -238,7 +238,7 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
             }}
             inputMode="numeric"
             autoComplete="tel-national"
-            placeholder="01X XXXX XXXX"
+            placeholder="01XXXXXXXXX"
             autoFocus={!initial?.number}
             aria-invalid={touched && !!errors.number}
             aria-describedby="number-help"

@@ -114,9 +114,9 @@ export default function LoginPage() {
 
 function ReceiptDecor() {
   const rows: [string, string][] = [
-    ['017 1234 5678', '৳50'],
-    ['018 9876 5432', '৳20'],
-    ['019 5555 0101', '৳100'],
+    ['01712345678', '৳50'],
+    ['01898765432', '৳20'],
+    ['01955550101', '৳100'],
   ];
   const line = { hidden: { opacity: 0, y: -4 }, show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: EASE_OUT } } };
   return (
