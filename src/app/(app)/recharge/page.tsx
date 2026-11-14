@@ -8,13 +8,14 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { SlidingMarker } from '@/components/motion';
 import { PinPad } from '@/components/recharge/PinPad';
+import { RepeatWarningSingle } from '@/components/recharge/RepeatWarning';
 import { Receipt } from '@/components/recharge/Receipt';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/field';
 import { OperatorMark, StatusBadge } from '@/components/ui/status';
 import { ApiError, api, newIdempotencyKey } from '@/lib/api';
 import { useUser } from '@/lib/auth';
-import { MIN_AMOUNT, OPEN_STATUSES, OPERATORS, PHONE_REGEX, QUICK_AMOUNTS, detectOperator } from '@/lib/constants';
+import { MIN_AMOUNT, OPEN_STATUSES, isRecentRepeat, OPERATORS, PHONE_REGEX, QUICK_AMOUNTS, detectOperator } from '@/lib/constants';
 import { cleanNumber, creatorName, dhakaDayKey, dhakaToday, fmtDateTime, fmtDay, fmtPhone, taka, timeAgo } from '@/lib/format';
 import { EASE_OUT, dur, feed, spring, unfold } from '@/lib/motion';
 import type { Operator, Paged, Recharge, RechargeStatus, RechargeType, Totals } from '@/lib/types';
@@ -22,7 +23,7 @@ import type { Operator, Paged, Recharge, RechargeStatus, RechargeType, Totals } 
 type Draft = { number: string; operator: Operator; type: RechargeType; amount: number };
 type LastRow = { trxid: string; amount: number; status: RechargeStatus; createdAt: string; createdBy?: unknown };
 type NumberInfo = {
-  summary: { usualOperator: Operator | null; lastRecharge: LastRow | null; lastSuccess: LastRow | null; count: number };
+  summary: { usualOperator: Operator | null; lastRecharge: LastRow | null; lastSuccess: LastRow | null; lastDone: LastRow | null; count: number };
 };
 
 export default function RechargePage() {
@@ -180,7 +181,13 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
   const chips = QUICK_AMOUNTS.filter((a) => a <= effectiveMax);
   if (limit != null && !chips.includes(limit) && limit >= MIN_AMOUNT && limit <= effectiveMax) chips.push(limit);
 
-  const submit = (e: React.FormEvent) => {
+  // Employees confirm before topping up a number recharged in the last 28 days (shop-wide).
+  const [repeat, setRepeat] = useState<LastRow | null>(null);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const proceed = () => onContinue({ number, operator: operator!, type, amount });
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
     if (pinMissing) return;
@@ -188,7 +195,22 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
       (errors.number ? numberRef : amountRef).current?.focus();
       return;
     }
-    onContinue({ number, operator: operator!, type, amount });
+    if (!isAdmin) {
+      // Don't let a quick tap skip the check while the lookup is still loading.
+      let data = info.data;
+      if (!data) {
+        setChecking(true);
+        data = (await info.refetch()).data;
+        setChecking(false);
+      }
+      const lastDone = data?.summary.lastDone ?? null;
+      if (isRecentRepeat(lastDone)) {
+        setRepeat(lastDone);
+        setRepeatOpen(true);
+        return;
+      }
+    }
+    proceed();
   };
 
   const pickRecent = (r: Recharge) => {
@@ -200,6 +222,7 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
   };
 
   return (
+    <>
     <form onSubmit={submit} noValidate>
       <h1 className="font-display text-[28px] font-extrabold tracking-[-0.02em]">New recharge</h1>
       <p className="mt-1 text-muted">
@@ -388,11 +411,22 @@ function RechargeForm({ initial, onContinue }: { initial?: Partial<Draft>; onCon
       </div>
 
       <div className="sticky bottom-[76px] -mx-4 mt-8 bg-gradient-to-t from-paper from-70% to-transparent px-4 pt-4 pb-2 lg:static lg:mx-0 lg:bg-none lg:p-0">
-        <Button type="submit" size="lg" className="w-full shadow-[0_8px_20px_-8px_rgba(0,81,59,0.6)] lg:shadow-none">
-          {valid ? `Review ${taka(amount)} to ${fmtPhone(number)}` : 'Review recharge'}
+        <Button type="submit" size="lg" loading={checking} className="w-full shadow-[0_8px_20px_-8px_rgba(0,81,59,0.6)] lg:shadow-none">
+          {checking ? 'Checking this number…' : valid ? `Review ${taka(amount)} to ${fmtPhone(number)}` : 'Review recharge'}
         </Button>
       </div>
     </form>
+    <RepeatWarningSingle
+      open={repeatOpen}
+      number={number}
+      last={repeat}
+      onCancel={() => setRepeatOpen(false)}
+      onProceed={() => {
+        setRepeatOpen(false);
+        proceed();
+      }}
+    />
+    </>
   );
 }
 

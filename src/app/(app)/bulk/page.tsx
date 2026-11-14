@@ -11,6 +11,7 @@ import { fmtGap, useBulkPace } from '@/components/bulk/BulkPacePanel';
 import { IconDownload, IconPlus, IconTrash, IconUpload } from '@/components/icons';
 import { CountUp, ShakeOn } from '@/components/motion';
 import { PinPad } from '@/components/recharge/PinPad';
+import { type LastDone, type RepeatRow, RepeatWarningBulk, lastDoneLine } from '@/components/recharge/RepeatWarning';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/field';
 import { Empty, PageHeader, Panel, PanelHead } from '@/components/ui/misc';
@@ -20,13 +21,13 @@ import { useToast } from '@/components/ui/toast';
 import { ApiError, api } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { BULK_MAX, type BulkRow, newRow, parseCells, parseText, rowError } from '@/lib/bulkParse';
-import { OPERATORS, OPERATOR_BY_CODE } from '@/lib/constants';
+import { OPERATORS, OPERATOR_BY_CODE, isRecentRepeat } from '@/lib/constants';
 import { cleanNumber, creatorName, dhakaDayKey, dhakaToday, fmtClock, fmtDateTime, fmtPhone, taka, timeAgo } from '@/lib/format';
 import { EASE_OUT, dur, unfold } from '@/lib/motion';
 import type { BulkBatch, BulkSummary, Operator, RechargeStatus, RechargeType, Totals } from '@/lib/types';
 
 type Mode = 'type' | 'paste' | 'excel';
-type Last = { number: string; amount: number; status: RechargeStatus; createdAt: string; createdBy: { name?: string } };
+type Last = { number: string; amount: number; status: RechargeStatus; createdAt: string; createdBy: { name?: string }; lastDone: LastDone | null };
 const DRAFT_KEY = 'stp-bulk-draft';
 
 /** Rows survive a reload or a trip to another page (per tab); "Retry failed" also hands rows over this way. */
@@ -92,6 +93,21 @@ export default function BulkPage() {
     placeholderData: (prev) => prev,
   });
   const lastBy = useMemo(() => new Map((last.data?.items ?? []).map((l) => [l.number, l])), [last.data]);
+  // Employees: the lookup must match the current list before sending, so the 28-day check can't be skipped
+  const checking = !isAdmin && validNumbers.length > 0 && (last.isFetching || last.isPlaceholderData || !last.data);
+  const recentRepeat = (n: string) => !isAdmin && isRecentRepeat(lastBy.get(n)?.lastDone);
+
+  const [repeatRows, setRepeatRows] = useState<RepeatRow[]>([]);
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const startSend = () => {
+    const flagged = rows
+      .filter((r) => recentRepeat(r.number))
+      .map((r) => ({ key: r.key, number: r.number, amount: r.amount, last: lastBy.get(r.number)!.lastDone! }));
+    if (flagged.length) {
+      setRepeatRows(flagged);
+      setRepeatOpen(true);
+    } else setConfirming(true);
+  };
 
   const counts = useMemo(() => {
     const c = new Map<string, number>();
@@ -177,6 +193,7 @@ export default function BulkPage() {
                       error={errors[i] ?? null}
                       duplicate={(counts.get(r.number) ?? 0) > 1}
                       last={lastBy.get(r.number)}
+                      recentRepeat={recentRepeat(r.number)}
                       onChange={(p) => update(r.key, p)}
                       onRemove={() => remove(r.key)}
                     />
@@ -212,13 +229,33 @@ export default function BulkPage() {
               </p>
             )}
           </div>
-          <Button size="lg" disabled={!rows.length || errorCount > 0} onClick={() => setConfirming(true)} className="sm:min-w-56">
-            {!rows.length ? 'Add numbers to review' : errorCount ? `Fix ${errorCount} row${errorCount === 1 ? '' : 's'} to continue` : `Send ${rows.length} recharge${rows.length === 1 ? '' : 's'}`}
+          <Button size="lg" disabled={!rows.length || errorCount > 0 || checking} loading={checking && errorCount === 0} onClick={startSend} className="sm:min-w-56">
+            {!rows.length
+              ? 'Add numbers to review'
+              : errorCount
+                ? `Fix ${errorCount} row${errorCount === 1 ? '' : 's'} to continue`
+                : checking
+                  ? 'Checking numbers…'
+                  : `Send ${rows.length} recharge${rows.length === 1 ? '' : 's'}`}
           </Button>
         </div>
       </div>
 
       <RecentBatches items={recent.data?.items} />
+
+      <RepeatWarningBulk
+        open={repeatOpen}
+        rows={repeatRows}
+        onBack={() => setRepeatOpen(false)}
+        onContinue={(removeKeys) => {
+          const drop = new Set(removeKeys);
+          const remaining = rows.filter((r) => !drop.has(r.key));
+          setRows(remaining);
+          setRepeatOpen(false);
+          if (drop.size) toast(`Removed ${drop.size} number${drop.size === 1 ? '' : 's'} recharged in the last 28 days`);
+          if (remaining.length) setConfirming(true);
+        }}
+      />
 
       <ConfirmBulk
         open={confirming}
@@ -426,6 +463,7 @@ function ReviewRow({
   error,
   duplicate,
   last,
+  recentRepeat,
   onChange,
   onRemove,
   ref,
@@ -435,11 +473,14 @@ function ReviewRow({
   error: string | null;
   duplicate: boolean;
   last?: Last;
+  /** employee only: recharged (Successful or open) in the last 28 days */
+  recentRepeat: boolean;
   onChange: (p: Partial<BulkRow>) => void;
   onRemove: () => void;
   ref?: React.Ref<HTMLLIElement>;
 }) {
   const recentToday = last && dhakaDayKey(last.createdAt) === dhakaToday() && last.status !== 'Failed' && last.status !== 'Cancel';
+  const warn = recentToday || recentRepeat;
   const control = 'h-9 rounded-md border border-line-strong bg-surface px-2 text-[14px] focus:border-flag focus:outline-none';
   return (
     <m.li
@@ -450,13 +491,13 @@ function ReviewRow({
       exit={{ opacity: 0, x: 16, transition: { duration: dur.fast } }}
       className={clsx(
         'relative border-b border-line px-4 py-3 last:border-0 sm:px-5',
-        error ? 'bg-danger-tint/40' : recentToday || duplicate ? 'bg-marigold-tint/40' : '',
+        error ? 'bg-danger-tint/40' : warn || duplicate ? 'bg-marigold-tint/40' : '',
       )}
     >
       <span
         aria-hidden
         className="absolute inset-y-0 left-0 w-[3px]"
-        style={{ backgroundColor: error ? 'var(--color-danger)' : recentToday || duplicate ? 'var(--color-marigold)' : 'transparent' }}
+        style={{ backgroundColor: error ? 'var(--color-danger)' : warn || duplicate ? 'var(--color-marigold)' : 'transparent' }}
       />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="tabular w-6 shrink-0 text-right text-sm text-muted">{index + 1}</span>
@@ -506,13 +547,14 @@ function ReviewRow({
           <IconTrash className="size-4" />
         </button>
       </div>
-      {(error || duplicate || recentToday) && (
+      {(error || duplicate || warn) && (
         <p className={clsx('mt-1.5 pl-9 text-sm', error ? 'text-danger' : 'text-[#6e5000]')}>
           {error ??
             [
               duplicate && 'Duplicate in this list',
-              recentToday &&
-                `Already recharged today: ${taka(last!.amount)} at ${fmtClock(last!.createdAt)} by ${creatorName(last!.createdBy)}`,
+              recentToday
+                ? `Already recharged today: ${taka(last!.amount)} at ${fmtClock(last!.createdAt)} by ${creatorName(last!.createdBy)}`
+                : recentRepeat && last?.lastDone && `Recharged in the last 28 days: ${lastDoneLine(last.lastDone)}`,
             ]
               .filter(Boolean)
               .join('. ')}

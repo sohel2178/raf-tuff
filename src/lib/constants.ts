@@ -34,3 +34,8 @@ export const STATUS_LABEL: Record<RechargeStatus, string> = {
   Failed: 'Failed',
   Unknown: 'Unknown',
 };
+
+/** Employees confirm before recharging a number already topped up this recently (Successful or still open). */
+export const REPEAT_WINDOW_DAYS = 28;
+export const isRecentRepeat = (lastDone?: { createdAt: string } | null) =>
+  !!lastDone && Date.now() - new Date(lastDone.createdAt).getTime() < REPEAT_WINDOW_DAYS * 86_400_000;
