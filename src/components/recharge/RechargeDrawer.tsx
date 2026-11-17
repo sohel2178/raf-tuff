@@ -15,7 +15,7 @@ import { api } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { OPEN_STATUSES, STATUS_LABEL } from '@/lib/constants';
 import { creatorName, fmtFull, fmtPhone, taka } from '@/lib/format';
-import type { Recharge } from '@/lib/types';
+import type { Recharge, StatusCheck } from '@/lib/types';
 
 const SOURCE: Record<string, string> = {
   api: 'Provider reply',
@@ -47,7 +47,9 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
     onSuccess: (r) => {
       qc.setQueryData(['recharge', trxid], r.recharge);
       qc.invalidateQueries({ queryKey: ['recharges'] });
-      toast(r.changed ? `Status updated: ${STATUS_LABEL[r.recharge.status]}` : 'No change from the provider');
+      if (r.changed) return toast(`Status updated: ${STATUS_LABEL[r.recharge.status]}`);
+      const said = providerWord(r.recharge.lastStatusResponse);
+      toast(said ? `No change. Provider says: ${said}` : 'No change from the provider', r.recharge.lastStatusResponse?.mappedTo === null ? 'error' : undefined);
     },
     onError: (e) => toast(e.message, 'error'),
   });
@@ -152,6 +154,8 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
             ))}
           </ol>
 
+          {user.role === 'admin' && r.lastStatusResponse && <LastStatusCheck c={r.lastStatusResponse} />}
+
           {user.role === 'admin' && r.rawRechargeResponse != null && (
             <div className="mt-8">
               <button onClick={() => setShowRaw((s) => !s)} className="text-sm font-medium text-flag underline-offset-4 hover:underline">
@@ -159,7 +163,11 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
               </button>
               {showRaw && (
                 <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-ink p-3 font-mono text-xs leading-relaxed text-[#cfe9de]">
-                  {JSON.stringify({ rawRechargeResponse: r.rawRechargeResponse, history: r.statusHistory }, null, 2)}
+                  {JSON.stringify(
+                    { rawRechargeResponse: r.rawRechargeResponse, lastStatusResponse: r.lastStatusResponse, history: r.statusHistory },
+                    null,
+                    2,
+                  )}
                 </pre>
               )}
             </div>
@@ -167,5 +175,50 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
         </div>
       )}
     </Drawer>
+  );
+}
+
+/** A short human reading of a status reply: its status word, else its message or error. */
+function providerWord(c: StatusCheck | null | undefined): string | null {
+  if (!c) return null;
+  if (c.error) return c.error;
+  const b = (c.body ?? {}) as Record<string, unknown>;
+  const nested = (['data', 'transaction', 'result'] as const).map((k) => b[k]).find((v) => v && typeof v === 'object') as Record<string, unknown> | undefined;
+  const word = b.status ?? nested?.status ?? b.message ?? b.code;
+  return typeof word === 'string' || typeof word === 'number' ? String(word) : null;
+}
+
+/** Admin-only: what Success TopUp said on the latest status check, and whether we could use it. */
+function LastStatusCheck({ c }: { c: StatusCheck }) {
+  const used = c.mappedTo !== null;
+  const said = providerWord(c);
+  return (
+    <section className="mt-8">
+      <h3 className="font-display font-bold">Last status check</h3>
+      <div className={clsx('mt-3 rounded-lg border px-3 py-2.5 text-sm', used ? 'border-line bg-paper' : 'border-danger/30 bg-danger-tint')}>
+        <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span className="font-medium">
+            {c.error ? 'Could not reach the provider' : `HTTP ${c.httpStatus ?? '—'}`}
+            {said && !c.error && <span className="font-normal text-muted"> · says “{said}”</span>}
+          </span>
+          <span className="tabular text-muted">
+            {fmtFull(c.at)} · {c.source === 'manual' ? 're-check' : 'auto'}
+          </span>
+        </p>
+        <p className={clsx('mt-1', used ? 'text-muted' : 'text-[#a5182b]')}>
+          {c.note ??
+            (c.error
+              ? c.error
+              : used
+                ? `Read as ${STATUS_LABEL[c.mappedTo!]}.`
+                : 'Not understood, so the status was left as it is. The full reply is below.')}
+        </p>
+        {!used && c.body != null && (
+          <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-ink p-2.5 font-mono text-xs leading-relaxed text-[#cfe9de]">
+            {JSON.stringify(c.body, null, 2)}
+          </pre>
+        )}
+      </div>
+    </section>
   );
 }

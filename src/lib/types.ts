@@ -38,6 +38,8 @@ export type Recharge = {
   statusHistory?: StatusEvent[];
   providerMessage?: string | null;
   rawRechargeResponse?: unknown;
+  /** Admin only: the provider's latest status reply (poll or manual re-check). */
+  lastStatusResponse?: StatusCheck | null;
   createdBy: { id: string; name: string; email: string } | string | null;
   apiKey?: { name: string; prefix: string } | null;
   source: 'web' | 'external-api';
@@ -109,3 +111,14 @@ export type BulkBatch = {
 export type BulkSummary = Omit<BulkBatch, 'items'> & { counts: Record<BulkItemState, number> };
 
 export type BulkPace = { gapMs: number; source: 'app' | 'default' };
+
+export type StatusCheck = {
+  at: string;
+  source: 'poll' | 'manual';
+  httpStatus: number | null;
+  body: unknown;
+  /** What we read it as; null = not applied (unknown word, blocked, error). */
+  mappedTo: RechargeStatus | null;
+  error?: string;
+  note?: string;
+};
