@@ -60,3 +60,7 @@ export const pct = (n: number | null | undefined) => (n == null ? '—' : `${n}%
 
 export const creatorName = (c: unknown) =>
   c && typeof c === 'object' && 'name' in c ? String((c as { name: string }).name) : '—';
+
+/** The creator's id whether `createdBy` is populated or a bare id. */
+export const creatorId = (c: unknown) =>
+  c && typeof c === 'object' && 'id' in c ? String((c as { id: string }).id) : typeof c === 'string' ? c : null;

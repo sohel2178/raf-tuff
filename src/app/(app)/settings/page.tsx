@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BulkPacePanel } from '@/components/bulk/BulkPacePanel';
 import { ProviderConnectionPanel } from '@/components/settings/ProviderConnectionPanel';
+import { SameAmountGapPanel } from '@/components/settings/SameAmountGapPanel';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/field';
 import { PageHeader, Panel } from '@/components/ui/misc';
@@ -100,7 +101,10 @@ export default function SettingsPage() {
 
       {user.role === 'admin' && (
         <div className="mt-5">
-          <BulkPacePanel />
+          <SameAmountGapPanel />
+          <div className="mt-5">
+            <BulkPacePanel />
+          </div>
           <div className="mt-5">
             <ProviderConnectionPanel />
           </div>

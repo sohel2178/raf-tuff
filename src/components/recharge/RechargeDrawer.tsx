@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { IconRefresh } from '@/components/icons';
 import { LiveStatus } from '@/components/motion';
+import { QueuedNotice, isQueued } from '@/components/recharge/QueuedNotice';
 import { Button } from '@/components/ui/button';
 import { ErrorNote, Skeleton } from '@/components/ui/misc';
 import { Drawer } from '@/components/ui/overlay';
@@ -39,7 +40,8 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
     queryKey: ['recharge', trxid],
     queryFn: () => api<{ recharge: Recharge }>(`/api/recharges/${trxid}`).then((r) => r.recharge),
     enabled: !!openTrxid,
-    refetchInterval: (query) => (OPEN_STATUSES.includes(query.state.data?.status ?? 'Success') ? 8000 : false),
+    refetchInterval: (query) =>
+      isQueued(query.state.data) ? 3000 : OPEN_STATUSES.includes(query.state.data?.status ?? 'Success') ? 8000 : false,
   });
 
   const recheck = useMutation({
@@ -63,9 +65,11 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
       footer={
         r && (
           <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => recheck.mutate()} loading={recheck.isPending}>
-              <IconRefresh className="size-4" /> Re-check status
-            </Button>
+            {!isQueued(r) && (
+              <Button variant="secondary" className="flex-1" onClick={() => recheck.mutate()} loading={recheck.isPending}>
+                <IconRefresh className="size-4" /> Re-check status
+              </Button>
+            )}
             <Link
               href={`/recharge?number=${r.number}`}
               className="inline-flex h-10 flex-1 items-center justify-center rounded-lg bg-flag px-4 text-sm font-medium text-white hover:bg-flag-deep"
@@ -94,6 +98,7 @@ export function RechargeDrawer({ trxid: openTrxid, onClose }: { trxid: string | 
             </div>
             <LiveStatus status={r.status} />
           </div>
+          <QueuedNotice recharge={r} className="mt-4" />
           {r.needsReview && (
             <p className="mt-4 rounded-lg bg-unknown-tint px-3 py-2 text-sm text-unknown">
               No final answer after the polling window. Confirm with the provider before recharging this number again.

@@ -47,6 +47,8 @@ export type Recharge = {
   needsReview?: boolean;
   pollCount?: number;
   lastPolledAt?: string | null;
+  /** Set while waiting for Success TopUp's same-amount gap: not sent yet, goes out automatically at sendAfter. */
+  queue?: { state: 'waiting' | 'sending'; sendAfter: string } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -111,6 +113,7 @@ export type BulkBatch = {
 export type BulkSummary = Omit<BulkBatch, 'items'> & { counts: Record<BulkItemState, number> };
 
 export type BulkPace = { gapMs: number; source: 'app' | 'default' };
+export type SameAmountGap = BulkPace & { minMs: number; maxMs: number };
 
 export type StatusCheck = {
   at: string;

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { SlidingMarker } from '@/components/motion';
+import { QueuedNotice, isQueued } from '@/components/recharge/QueuedNotice';
 import { PinPad } from '@/components/recharge/PinPad';
 import { RepeatWarningSingle } from '@/components/recharge/RepeatWarning';
 import { Receipt } from '@/components/recharge/Receipt';
@@ -576,7 +577,8 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
     queryKey: ['recharge', initial.trxid],
     queryFn: () => api<{ recharge: Recharge }>(`/api/recharges/${initial.trxid}`).then((r) => r.recharge),
     initialData: initial,
-    refetchInterval: (query) => (OPEN_STATUSES.includes(query.state.data?.status ?? 'Success') ? 4000 : false),
+    refetchInterval: (query) =>
+      isQueued(query.state.data) ? 3000 : OPEN_STATUSES.includes(query.state.data?.status ?? 'Success') ? 4000 : false,
   });
   const r = q.data;
   const open = OPEN_STATUSES.includes(r.status);
@@ -587,9 +589,10 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
     if (r.status === 'Success' && wasOpen.current) setFlash((n) => n + 1);
     wasOpen.current = OPEN_STATUSES.includes(r.status);
   }, [r.status]);
-  const heading = open ? 'Recharge sent' : r.status === 'Success' ? 'Done' : 'Recharge update';
+  const queued = isQueued(r);
+  const heading = queued ? 'Recharge queued' : open ? 'Recharge sent' : r.status === 'Success' ? 'Done' : 'Recharge update';
   const copy: Record<string, string> = {
-    Pending: 'Queued. Sending to the operator…',
+    Pending: queued ? 'Saved. It goes to Success TopUp automatically when the countdown ends.' : 'Queued. Sending to the operator…',
     Processing: 'Sent. Waiting for the operator to confirm — this usually takes under a minute.',
     Success: 'The operator confirmed the top-up.',
     Failed: r.providerMessage ? `Not sent: ${r.providerMessage}` : 'The provider rejected this recharge. No money was taken.',
@@ -609,6 +612,7 @@ function Result({ initial, onNew, onAgain }: { initial: Recharge; onNew: () => v
       <p className="mt-1 text-muted" aria-live="polite">
         {copy[r.status]}
       </p>
+      <QueuedNotice recharge={r} className="mt-4" />
       <div className="relative mt-6">
         <AnimatePresence>
           {flash > 0 && (

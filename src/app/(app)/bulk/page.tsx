@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BatchStatus } from '@/components/bulk/batchStatus';
 import { fmtGap, useBulkPace } from '@/components/bulk/BulkPacePanel';
+import { useSameAmountGap } from '@/components/recharge/QueuedNotice';
 import { IconDownload, IconPlus, IconTrash, IconUpload } from '@/components/icons';
 import { CountUp, ShakeOn } from '@/components/motion';
 import { PinPad } from '@/components/recharge/PinPad';
@@ -601,6 +602,7 @@ function ConfirmBulk({
   const [allowDupes, setAllowDupes] = useState(false);
   const pinRef = useRef<HTMLInputElement>(null);
   const pace = useBulkPace();
+  const sameGap = useSameAmountGap();
 
   const byOperator = useMemo(() => {
     const map = new Map<Operator, { count: number; amount: number }>();
@@ -709,8 +711,9 @@ function ConfirmBulk({
           </p>
         )}
         <p className="mt-3 text-sm text-muted">
-          Numbers are sent one at a time{pace.data ? (pace.data.gapMs ? `, ${fmtGap(pace.data.gapMs)} apart` : ' with no pause') : ''}. You can leave this
-          page; the batch keeps going.
+          Numbers are sent one at a time{pace.data ? (pace.data.gapMs ? `, ${fmtGap(pace.data.gapMs)} apart` : ' with no pause') : ''}. Rows with the
+          same amount go at least {sameGap.data ? Math.round(sameGap.data.gapMs / 1000) : 65} s apart (Success TopUp&apos;s rule), so other amounts
+          may go first. You can leave this page; the batch keeps going.
         </p>
       </form>
     </Modal>
